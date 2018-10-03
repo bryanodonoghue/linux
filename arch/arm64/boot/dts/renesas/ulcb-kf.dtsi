@@ -1471,3 +1471,8 @@
 
 
 
+/* enable IMX219 camera */
+#include "ulcb-kf-imx219.dtsi"
+
+
+
