@@ -2531,8 +2531,6 @@ ath10k_accumulate_per_peer_tx_stats(struct ath10k *ar,
 		/* For 11g and 11b, NSS is 1x1 */
 		nss = 1;
 		mcs = legacy_rate_idx;
-		if (mcs < 0)
-			return;
 
 		STATS_OP_FMT(SUCC).legacy[0][mcs] += pstats->succ_bytes;
 		STATS_OP_FMT(SUCC).legacy[1][mcs] += pstats->succ_pkts;
