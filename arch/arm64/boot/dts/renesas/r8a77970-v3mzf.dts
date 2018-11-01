@@ -13,8 +13,8 @@
 #include <dt-bindings/gpio/gpio.h>
 
 / {
-	model = "Renesas V3MZF board based on r8a7797";
-	compatible = "renesas,v3mzf", "renesas,r8a7797";
+	model = "Renesas V3MZF board based on r8a77970";
+	compatible = "renesas,v3mzf", "renesas,r8a77970";
 
 	aliases {
 		serial0 = &scif0;
@@ -22,7 +22,6 @@
 	};
 
 	chosen {
-		bootargs = "ignore_loglevel rw root=/dev/nfs ip=dhcp";
 		stdout-path = "serial0:115200n8";
 	};
 
@@ -87,7 +86,7 @@
 
 		port {
 			lvds_in: endpoint {
-				remote-endpoint = <&du_out_lvds0>;
+				remote-endpoint = <&lvds0_out>;
 			};
 		};
 	};
@@ -188,15 +187,10 @@
 };
 
 &du {
+	clocks = <&cpg CPG_MOD 724>,
+		 <&dclkin_p0>;
+	clock-names = "du.0", "dclkin.0";
 	status = "okay";
-
-	ports {
-		port@0 {
-			endpoint {
-				remote-endpoint = <&lvds_in>;
-			};
-		};
-	};
 };
 
 &extal_clk {
@@ -306,6 +300,18 @@
 	};
 };
 
+&lvds0 {
+	status = "okay";
+
+	ports {
+		port@1 {
+			lvds0_out: endpoint {
+				remote-endpoint = <&lvds_in>;
+			};
+		};
+	};
+};
+
 &msiof2 {
 	pinctrl-0 = <&msiof2_pins>;
 	pinctrl-names = "default";
@@ -395,7 +401,7 @@
 	status = "okay";
 };
 
-&sdhi2 {
+&mmc0 {
 	/* used for on-board eMMC */
 	pinctrl-0 = <&sdhi2_pins_3v3>;
 	pinctrl-names = "default";
@@ -437,6 +443,6 @@
 	};
 };
 
-&wdt0 {
+&rwdt {
 	status = "okay";
 };
