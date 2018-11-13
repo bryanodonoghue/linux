@@ -7,6 +7,7 @@
  * Contact: Laurent Pinchart (laurent.pinchart@ideasonboard.com)
  */
 
+//#define DEBUG
 #include <linux/device.h>
 
 #include <media/v4l2-subdev.h>
@@ -244,6 +245,9 @@ static void wpf_configure_stream(struct vsp1_entity *entity,
 	unsigned int i;
 	u32 outfmt = 0;
 	u32 srcrpf = 0;
+
+	dev_dbg(vsp1->dev, "wpf#%d: outfmt=%x (csc=%d)\n",
+		wpf->entity.index, outfmt, !!(outfmt & VI6_WPF_OUTFMT_CSC));
 
 	if (pipe->vmute_flag)
 		return;
