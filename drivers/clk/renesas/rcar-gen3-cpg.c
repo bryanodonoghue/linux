@@ -45,6 +45,13 @@ static u32 cpg_quirks;
 #define RCKCR_CKSEL		BIT(1)	/* Resverd RCLK clock soruce select */
 #define Z2FC_BIT_MASK_SFT_8	BIT(2)	/* Use Z2FC bit mask range to [12:8] */
 #define ZG_PARENT_PLL0		BIT(3)	/* Use PLL0 as ZG clock parent */
+/*
+ * Z2: SYS-CPU divider 2 on V3H seems to be fixed to 1/2 and 1 on V3M.
+ * It is not 100% clear from the User's Manual but at least
+ * FRQCRC register is missed on V3x.
+ */
+#define Z2_SYSCPU_1		BIT(4)  /* Z2 is fixed with SYS-CPU divider 2 set to 1   - V3M */
+#define Z2_SYSCPU_2		BIT(5)  /* Z2 is fixed with SYS-CPU divider 2 set to 1/2 - V3H */
 
 static spinlock_t cpg_lock;
 
@@ -247,8 +254,16 @@ static unsigned long cpg_z_clk_recalc_rate(struct clk_hw *hw,
 	unsigned int mult;
 	u32 val;
 
-	val = readl(zclk->reg) & zclk->mask;
-	mult = 32 - (val >> __ffs(zclk->mask));
+	if (cpg_quirks & Z2_SYSCPU_1) {
+		/* SYS-CPU divider 2 is 1 == 32/32) */
+		mult = 32;
+	} else if (cpg_quirks & Z2_SYSCPU_2) {
+		/* SYS-CPU divider 2 is 1/2 == 16/32) */
+		mult = 16;
+	} else {
+		val = readl(zclk->reg) & zclk->mask;
+		mult = 32 - (val >> __ffs(zclk->mask));
+	}
 
 	return Z_CLK_ROUND(prate * mult / 32);
 }
@@ -826,6 +841,14 @@ static const struct soc_device_attribute cpg_quirks_match[] __initconst = {
 	{
 		.soc_id = "r8a77990",
 		.data = (void *)(Z2FC_BIT_MASK_SFT_8 | ZG_PARENT_PLL0),
+	},
+	{
+		.soc_id = "r8a77970",
+		.data = (void *)(Z2_SYSCPU_1),
+	},
+	{
+		.soc_id = "r8a77980",
+		.data = (void *)(Z2_SYSCPU_2),
 	},
 	{ /* sentinel */ }
 };
