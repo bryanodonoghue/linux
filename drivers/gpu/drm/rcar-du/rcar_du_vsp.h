@@ -55,11 +55,16 @@ struct rcar_du_vsp_plane_state {
 	struct drm_plane_state state;
 
 	const struct rcar_du_format_info *format;
-	struct sg_table sg_tables[3];
+	struct sg_table sg_tables[4];
 
 	unsigned int alpha;
 	u32 colorkey;
 	u32 colorkey_alpha;
+	struct drm_framebuffer *alphaplane;
+	unsigned int blend;
+	unsigned int ckey;
+	unsigned int ckey_set0;
+	unsigned int ckey_set1;
 };
 
 static inline struct rcar_du_vsp_plane_state *

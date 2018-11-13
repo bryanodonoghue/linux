@@ -70,6 +70,11 @@ struct rcar_du_plane_state {
 	unsigned int alpha;
 	unsigned int colorkey;
 	unsigned int colorkey_alpha;
+	struct drm_framebuffer *alphaplane;
+	unsigned int blend;
+	unsigned int ckey;
+	unsigned int ckey_set0;
+	unsigned int ckey_set1;
 };
 
 static inline struct rcar_du_plane_state *
