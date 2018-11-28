@@ -113,9 +113,11 @@ static int ncp6335x_read(struct ncp6335d_info *dd, unsigned int reg,
 
 	rc = regmap_read(dd->regmap, reg, val);
 
+	pr_debug(" %s: reg=0x%x, val=0x%x\n",
+		__func__, reg, *val);
 	for (i = 0; rc && i < ARRAY_SIZE(delay_array); i++) {
-		pr_warning("%s: failed reading reg=0x%x rc=%d - retry(%d)\n",
-			__func__, reg, rc, i);
+		pr_warning("%s: failed reading reg=0x%x val=%u rc=%d - retry(%d)\n",
+			__func__, reg, *val, rc, i);
 		msleep(delay_array[i]);
 		rc = regmap_read(dd->regmap, reg, val);
 	}
@@ -169,6 +171,9 @@ static int ncp6335x_update_bits(struct ncp6335d_info *dd, unsigned int reg,
 	rc = regmap_update_bits(dd->regmap, reg, mask, val);
 
 	read_rc = regmap_read(dd->regmap, reg, &read_val);
+
+	pr_debug(" %s: reg=0x%x, mask=0x%x, val=0x%x, read_val=0x%x\n",
+		__func__, reg, mask, val, read_val);
 
 	for (i = 0; (rc || read_rc || (val & mask) != (read_val & mask))
 			&& i < ARRAY_SIZE(delay_array); i++) {
