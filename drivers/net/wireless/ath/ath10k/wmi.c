@@ -2694,7 +2694,7 @@ static void ath10k_wmi_event_chan_info_unpaired(struct ath10k *ar,
 
 	survey = &ar->survey[idx];
 
-	if (!params->mac_clk_mhz || !survey)
+	if (!params->mac_clk_mhz)
 		return;
 
 	ar->hw_params.channel_counters_freq_hz = params->mac_clk_mhz * 1000;
