@@ -243,6 +243,16 @@ static struct ipmmu_whitelist *r8a77965_whitelist[] = {
 	NULL, /* Terminator */
 };
 
+/* R-Car E3 (R8A77970) */
+static struct ipmmu_whitelist *r8a77970_whitelist[] = {
+	NULL, /* Terminator */
+};
+
+/* R-Car E3 (R8A77980) */
+static struct ipmmu_whitelist *r8a77980_whitelist[] = {
+	NULL, /* Terminator */
+};
+
 /* R-Car E3 (R8A77990) */
 static struct ipmmu_whitelist r8a77990_ipmmu_vi0 = {
 	.ipmmu_name	= "febd0000.mmu",
@@ -1145,6 +1155,16 @@ static const struct soc_device_attribute r8a77965[]  = {
 	{ /* sentinel */ }
 };
 
+static const struct soc_device_attribute r8a77970[]  = {
+	{ .soc_id = "r8a77970" },
+	{ /* sentinel */ }
+};
+
+static const struct soc_device_attribute r8a77980[]  = {
+	{ .soc_id = "r8a77980" },
+	{ /* sentinel */ }
+};
+
 static const struct soc_device_attribute r8a77990[]  = {
 	{ .soc_id = "r8a77990" },
 	{ /* sentinel */ }
@@ -1482,6 +1502,10 @@ static int ipmmu_whitelist_init(struct ipmmu_vmsa_device *mmu)
 		mmu->whitelist = r8a77965_whitelist;
 	else if (soc_device_match(r8a77990))
 		mmu->whitelist = r8a77990_whitelist;
+	else if (soc_device_match(r8a77970))
+		mmu->whitelist = r8a77970_whitelist;
+	else if (soc_device_match(r8a77980))
+		mmu->whitelist = r8a77980_whitelist;
 	else
 		mmu->whitelist = NULL;
 
