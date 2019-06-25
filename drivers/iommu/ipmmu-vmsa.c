@@ -1485,7 +1485,7 @@ static int ipmmu_whitelist_init(struct ipmmu_vmsa_device *mmu)
 	else
 		mmu->whitelist = NULL;
 
-	if (!mmu->whitelist[0])
+	if (!mmu->whitelist)
 		return -1;
 
 	return ipmmu_bm_init(mmu);
