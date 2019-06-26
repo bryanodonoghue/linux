@@ -277,7 +277,7 @@ static int rcar_du_vsp_plane_prepare_fb(struct drm_plane *plane,
 			drm_fb_cma_get_gem_obj(state->fb, i);
 		struct sg_table *sgt = &rstate->sg_tables[i];
 
-		if (gem->sgt) {
+		if (gem->sgt && !gem->paddr) {
 			struct scatterlist *src;
 			struct scatterlist *dst;
 
