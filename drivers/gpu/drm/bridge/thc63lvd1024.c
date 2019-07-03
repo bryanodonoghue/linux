@@ -55,7 +55,7 @@ static enum drm_mode_status thc63_mode_valid(struct drm_bridge *bridge,
 	if (mode->clock < 8000)
 		return MODE_CLOCK_LOW;
 
-	if (mode->clock > 135000)
+	if (mode->clock > 150000)
 		return MODE_CLOCK_HIGH;
 
 	/* Refresh rate 30 or less of full HD is basically not used,
