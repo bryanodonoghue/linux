@@ -58,7 +58,7 @@ struct file_info {
 	u64 size;
 };
 
-void efi_printk(efi_system_table_t *sys_table_arg, char *str)
+void efi_printk(efi_system_table_t *sys_table_arg, char *str, ...)
 {
 	char *s8;
 
