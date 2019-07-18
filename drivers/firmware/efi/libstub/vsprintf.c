@@ -50,6 +50,10 @@
 #include <linux/string_helpers.h>
 #include "kstrtox.h"
 
+/* Define WARN_ONCE as a simple bool for the initial import */
+#define WARN_ONCE(x, y, ...) (x)
+#define WARN_ON_ONCE(x) (x)
+
 /**
  * simple_strtoull - convert a string to an unsigned long long
  * @cp: The start of the string
