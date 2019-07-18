@@ -809,26 +809,12 @@ char *symbol_string(char *buf, char *end, void *ptr,
 		    struct printf_spec spec, const char *fmt)
 {
 	unsigned long value;
-#ifdef CONFIG_KALLSYMS
-	char sym[KSYM_SYMBOL_LEN];
-#endif
 
 	if (fmt[1] == 'R')
 		ptr = __builtin_extract_return_addr(ptr);
 	value = (unsigned long)ptr;
 
-#ifdef CONFIG_KALLSYMS
-	if (*fmt == 'B')
-		sprint_backtrace(sym, value);
-	else if (*fmt != 'f' && *fmt != 's')
-		sprint_symbol(sym, value);
-	else
-		sprint_symbol_no_offset(sym, value);
-
-	return string_nocheck(buf, end, sym, spec);
-#else
 	return special_hex_number(buf, end, value, sizeof(void *));
-#endif
 }
 
 static const struct printf_spec default_str_spec = {
