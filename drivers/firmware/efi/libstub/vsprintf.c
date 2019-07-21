@@ -1631,27 +1631,6 @@ char *time_and_date(char *buf, char *end, void *ptr, struct printf_spec spec,
 	}
 }
 
-static noinline_for_stack
-char *clock(char *buf, char *end, struct clk *clk, struct printf_spec spec,
-	    const char *fmt)
-{
-	if (!IS_ENABLED(CONFIG_HAVE_CLK))
-		return error_string(buf, end, "(%pC?)", spec);
-
-	if (check_pointer(&buf, end, clk, spec))
-		return buf;
-
-	switch (fmt[1]) {
-	case 'n':
-	default:
-#ifdef CONFIG_COMMON_CLK
-		return string(buf, end, __clk_get_name(clk), spec);
-#else
-		return pointer_string(buf, end, clk, spec);
-#endif
-	}
-}
-
 static
 char *format_flags(char *buf, char *end, unsigned long flags,
 					const struct trace_print_flags *names)
@@ -1800,10 +1779,6 @@ static char *kobject_string(char *buf, char *end, void *ptr,
  * - 'g' For block_device name (gendisk + partition number)
  * - 't[R][dt][r]' For time and date as represented:
  *      R    struct rtc_time
- * - 'C' For a clock, it prints the name (Common Clock Framework) or address
- *       (legacy clock framework) of the clock
- * - 'Cn' For a clock, it prints the name (Common Clock Framework) or address
- *        (legacy clock framework) of the clock
  * - 'OF[fnpPcCF]'  For a device tree object
  *                  Without any optional arguments prints the full_name
  *                  f device node full_name
@@ -1877,8 +1852,6 @@ char *pointer(const char *fmt, char *buf, char *end, void *ptr,
 		return dentry_name(buf, end, ptr, spec, fmt);
 	case 't':
 		return time_and_date(buf, end, ptr, spec, fmt);
-	case 'C':
-		return clock(buf, end, ptr, spec, fmt);
 	case 'D':
 		return dentry_name(buf, end,
 				   ((const struct file *)ptr)->f_path.dentry,
