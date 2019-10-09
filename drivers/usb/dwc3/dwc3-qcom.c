@@ -501,8 +501,10 @@ static int dwc3_qcom_probe(struct platform_device *pdev)
 
 	/* register extcon to override sw_vbus on Vbus change later */
 	ret = dwc3_qcom_register_extcon(qcom);
-	if (ret)
+	if (ret) {
+		platform_device_put(qcom->dwc3);
 		goto depopulate;
+	}
 
 	device_init_wakeup(&pdev->dev, 1);
 	qcom->is_suspended = false;
