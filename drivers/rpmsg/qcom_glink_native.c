@@ -1651,7 +1651,6 @@ void qcom_glink_native_remove(struct qcom_glink *glink)
 	struct glink_channel *channel;
 	int cid;
 	int ret;
-	unsigned long flags;
 
 	disable_irq(glink->irq);
 	qcom_glink_cancel_rx_work(glink);
