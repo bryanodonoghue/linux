@@ -1,0 +1,217 @@
+/*
+ * Device Tree Source for the Salvator-X.View board
+ *
+ * Copyright (C) 2016-2019 Renesas Electronics Corp.
+ *
+ * This file is licensed under the terms of the GNU General Public License
+ * version 2.  This program is licensed "as is" without any warranty of any
+ * kind, whether express or implied.
+ */
+
+/dts-v1/;
+
+#include "common-AVL-DRE8029.dtsi"
+
+/ {
+	model = "AVL DRE8029 SoC1";
+	compatible = "avl,dre8029", "renesas,r8a7795";
+
+	lvds {
+		compatible = "panel-lvds";
+
+		width-mm = <210>;
+		height-mm = <158>;
+
+		data-mapping = "jeida-24";
+		enable-gpios = <&gpio6 7 GPIO_ACTIVE_HIGH>;
+
+		panel-timing {
+			/* 1024x768 @60Hz */
+			clock-frequency = <65000000>;
+			hactive = <1024>;
+			vactive = <768>;
+			hsync-len = <136>;
+			hfront-porch = <20>;
+			hback-porch = <160>;
+			vfront-porch = <3>;
+			vback-porch = <29>;
+			vsync-len = <6>;
+		};
+
+		port {
+			lvds_in: endpoint {
+				remote-endpoint = <&lvds0_out>;
+			};
+		};
+	};
+
+    /* External DU dot clocks */
+	x21_clk: x21-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <50000000>;
+	};
+};
+
+&pfc {
+	i2c1_pins: i2c1 {
+		groups = "i2c1_b";
+		function = "i2c1";
+	};
+
+	irq0_pins: irq0 {
+		groups = "intc_ex_irq0";
+		function = "intc_ex";
+	};
+
+	msiof0_pins: spi0 {
+        groups = "msiof0_clk", "msiof0_sync",
+        "msiof0_rxd", "msiof0_txd";
+        function = "msiof0";
+    };
+	
+    msiof1_pins: spi1 {
+        groups = "msiof1_clk_a", "msiof1_sync_a",
+        "msiof1_rxd_a", "msiof1_txd_a";
+        function = "msiof1";
+    };
+
+    msiof3_pins: spi3 {
+        groups = "msiof3_clk_b", "msiof3_sync_b",
+        "msiof3_rxd_b", "msiof3_txd_b";
+        function = "msiof3";
+    };
+
+	pwm3_pins: pwm3 {
+		groups = "pwm3_a";
+		function = "pwm3";
+	};
+};
+
+&i2c_dvfs {
+	status = "okay";
+
+	clock-frequency = <400000>;
+
+	pmic: pmic@30 {
+		pinctrl-0 = <&irq0_pins>;
+		pinctrl-names = "default";
+
+		compatible = "rohm,bd9571mwv";
+		reg = <0x30>;
+		interrupt-parent = <&intc_ex>;
+		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		rohm,ddr-backup-power = <0xf>;
+		rohm,rstbmode-level;
+
+		regulators {
+			dvfs: dvfs {
+				regulator-name = "dvfs";
+				regulator-min-microvolt = <750000>;
+				regulator-max-microvolt = <1030000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+		};
+	};
+
+	eeprom@50 {
+		compatible = "rohm,br24t01", "atmel,24c01";
+		reg = <0x50>;
+		pagesize = <8>;
+	};
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+
+	clock-frequency = <100000>;
+	
+};
+
+&i2c4 {
+	status = "okay";
+
+	clock-frequency = <100000>;
+	
+};
+
+/* module clock */
+&msiof_ref_clk {
+    clock-frequency = <133333333>;
+};
+
+&msiof0 {
+    pinctrl-0 = <&msiof0_pins>;
+    pinctrl-names = "default";
+
+    /* status = "okay"; */
+	
+    /* Add a subnode. */
+};
+
+&msiof1 {
+    pinctrl-0 = <&msiof1_pins>;
+    pinctrl-names = "default";
+
+    /* status = "okay"; */
+
+    /* Add a subnode. */
+};
+
+&msiof3 {
+    pinctrl-0 = <&msiof3_pins>;
+    pinctrl-names = "default";
+
+    status = "okay";
+
+	slavedev {
+        compatible = "ti,ads7952";
+		reg = <0>;
+		spi-max-frequency = <16666666>;
+		spi-cpha;
+		spi-cpol;
+    };
+};
+
+&lvds0 {
+    status = "okay";
+	ports {
+		port@1 {
+			lvds0_out: endpoint {
+				remote-endpoint = <&lvds_in>;
+			};
+		};
+	};
+};
+
+&du {
+	clocks = <&cpg CPG_MOD 724>, <&x21_clk>;
+	clock-names = "du.0", "dclkin.0";
+};
+
+&pcie_bus_clk {
+	clock-frequency = <100000000>;
+};
+
+&pciec0 {
+	status = "okay";
+};
+
+&pciec1 {
+	status = "okay";
+};
+
+&pwm3 {
+	pinctrl-0 = <&pwm3_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
