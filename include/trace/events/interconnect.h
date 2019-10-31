@@ -51,6 +51,27 @@ TRACE_EVENT(icc_set_bw,
 		  __entry->node_peak_bw)
 );
 
+TRACE_EVENT(icc_set_bw_begin,
+
+	TP_PROTO(struct icc_path *p),
+
+	TP_ARGS(p),
+
+	TP_STRUCT__entry(
+		__string(path_name, p->name)
+		__string(dev, dev_name(p->reqs[0].dev))
+	),
+
+	TP_fast_assign(
+		__assign_str(path_name, p->name);
+		__assign_str(dev, dev_name(p->reqs[0].dev));
+	),
+
+	TP_printk("path=%s dev=%s",
+		  __get_str(path_name),
+		  __get_str(dev))
+);
+
 TRACE_EVENT(icc_set_bw_end,
 
 	TP_PROTO(struct icc_path *p, int ret),
