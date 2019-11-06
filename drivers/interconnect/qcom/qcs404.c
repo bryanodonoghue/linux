@@ -12,7 +12,6 @@
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <linux/slab.h>
 
 #include "smd-rpm.h"
 
@@ -406,6 +405,21 @@ static int qcom_icc_set(struct icc_node *src, struct icc_node *dst)
 	return 0;
 }
 
+static int qnoc_remove(struct platform_device *pdev)
+{
+	struct qcom_icc_provider *qp = platform_get_drvdata(pdev);
+	struct icc_provider *provider = &qp->provider;
+	struct icc_node *n;
+
+	list_for_each_entry(n, &provider->nodes, node_list) {
+		icc_node_del(n);
+		icc_node_destroy(n->id);
+	}
+	clk_bulk_disable_unprepare(qp->num_clks, qp->bus_clks);
+
+	return icc_provider_del(provider);
+}
+
 static int qnoc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -433,7 +447,8 @@ static int qnoc_probe(struct platform_device *pdev)
 	if (!qp)
 		return -ENOMEM;
 
-	data = devm_kcalloc(dev, num_nodes, sizeof(*node), GFP_KERNEL);
+	data = devm_kzalloc(dev, struct_size(data, nodes, num_nodes),
+			    GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
 
@@ -493,29 +508,9 @@ static int qnoc_probe(struct platform_device *pdev)
 
 	return 0;
 err:
-	list_for_each_entry(node, &provider->nodes, node_list) {
-		icc_node_del(node);
-		icc_node_destroy(node->id);
-	}
-	clk_bulk_disable_unprepare(qp->num_clks, qp->bus_clks);
-	icc_provider_del(provider);
+	qnoc_remove(pdev);
 
 	return ret;
-}
-
-static int qnoc_remove(struct platform_device *pdev)
-{
-	struct qcom_icc_provider *qp = platform_get_drvdata(pdev);
-	struct icc_provider *provider = &qp->provider;
-	struct icc_node *n;
-
-	list_for_each_entry(n, &provider->nodes, node_list) {
-		icc_node_del(n);
-		icc_node_destroy(n->id);
-	}
-	clk_bulk_disable_unprepare(qp->num_clks, qp->bus_clks);
-
-	return icc_provider_del(provider);
 }
 
 static const struct of_device_id qcs404_noc_of_match[] = {
@@ -534,6 +529,18 @@ static struct platform_driver qcs404_noc_driver = {
 		.of_match_table = qcs404_noc_of_match,
 	},
 };
-module_platform_driver(qcs404_noc_driver);
+
+static int __init qcs404_noc_driver_init(void)
+{
+	return platform_driver_register(&qcs404_noc_driver);
+}
+core_initcall(qcs404_noc_driver_init);
+
+static void __exit qcs404_noc_driver_exit(void)
+{
+	platform_driver_unregister(&qcs404_noc_driver);
+}
+module_exit(qcs404_noc_driver_exit);
+
 MODULE_DESCRIPTION("Qualcomm QCS404 NoC driver");
 MODULE_LICENSE("GPL v2");

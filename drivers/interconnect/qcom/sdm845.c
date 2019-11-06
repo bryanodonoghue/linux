@@ -790,7 +790,8 @@ static int qnoc_probe(struct platform_device *pdev)
 	if (!qp)
 		return -ENOMEM;
 
-	data = devm_kcalloc(&pdev->dev, num_nodes, sizeof(*node), GFP_KERNEL);
+	data = devm_kzalloc(&pdev->dev, struct_size(data, nodes, num_nodes),
+			    GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
 
@@ -891,7 +892,18 @@ static struct platform_driver qnoc_driver = {
 		.of_match_table = qnoc_of_match,
 	},
 };
-module_platform_driver(qnoc_driver);
+
+static int __init qnoc_driver_init(void)
+{
+	return platform_driver_register(&qnoc_driver);
+}
+core_initcall(qnoc_driver_init);
+
+static void __exit qnoc_driver_exit(void)
+{
+	platform_driver_unregister(&qnoc_driver);
+}
+module_exit(qnoc_driver_exit);
 
 MODULE_AUTHOR("David Dai <daidavid1@codeaurora.org>");
 MODULE_DESCRIPTION("Qualcomm sdm845 NoC driver");
