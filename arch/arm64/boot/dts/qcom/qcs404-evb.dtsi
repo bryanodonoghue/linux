@@ -33,6 +33,25 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-always-on;
 	};
+
+	usb3_vbus_reg: regulator-usb3-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "VBUS_5V";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&pms405_gpios 3 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb3_vbus_boost_pin>;
+		enable-active-high;
+	};
+
+	usb3_con: usb3-connector {
+		compatible = "linux,extcon-usb-gpio";
+		id-gpio = <&tlmm 116 GPIO_ACTIVE_HIGH>;
+		vbus-gpio = <&pms405_gpios 12 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb3_id_pin>, <&usb3_vbus_pin>;
+	};
 };
 
 &blsp1_uart3 {
@@ -77,25 +96,6 @@
 		regulator-name = "vdd_apc";
 		regulator-min-microvolt = <1048000>;
 		regulator-max-microvolt = <1384000>;
-	};
-
-	usb3_vbus_reg: regulator-usb3-vbus {
-		compatible = "regulator-fixed";
-		regulator-name = "VBUS_5V";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		gpio = <&pms405_gpios 3 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb3_vbus_boost_pin>;
-		enable-active-high;
-	};
-
-	usb3_con: usb3-connector {
-		compatible = "linux,extcon-usb-gpio";
-		id-gpio = <&tlmm 116 GPIO_ACTIVE_HIGH>;
-		vbus-gpio = <&pms405_gpios 12 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb3_id_pin>, <&usb3_vbus_pin>;
 	};
 };
 
