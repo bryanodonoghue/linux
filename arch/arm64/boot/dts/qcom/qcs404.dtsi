@@ -412,7 +412,7 @@
 		};
 
 		usb3_phy: phy@78000 {
-			compatible = "qcom,usb-ssphy";
+			compatible = "qcom,snps-usb-ssphy";
 			reg = <0x78000 0x400>;
 			#phy-cells = <0>;
 			clocks = <&rpmcc RPM_SMD_LN_BB_CLK>,
