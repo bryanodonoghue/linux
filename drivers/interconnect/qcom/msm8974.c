@@ -644,6 +644,21 @@ static int msm8974_icc_set(struct icc_node *src, struct icc_node *dst)
 	return 0;
 }
 
+static int msm8974_icc_remove(struct platform_device *pdev)
+{
+	struct msm8974_icc_provider *qp = platform_get_drvdata(pdev);
+	struct icc_provider *provider = &qp->provider;
+	struct icc_node *n, *tmp;
+
+	list_for_each_entry_safe(n, tmp, &provider->nodes, node_list) {
+		icc_node_del(n);
+		icc_node_destroy(n->id);
+	}
+	clk_bulk_disable_unprepare(qp->num_clks, qp->bus_clks);
+
+	return icc_provider_del(provider);
+}
+
 static int msm8974_icc_probe(struct platform_device *pdev)
 {
 	const struct msm8974_icc_desc *desc;
@@ -701,7 +716,8 @@ static int msm8974_icc_probe(struct platform_device *pdev)
 	ret = icc_provider_add(provider);
 	if (ret) {
 		dev_err(dev, "error adding interconnect provider: %d\n", ret);
-		goto err_disable_clks;
+		clk_bulk_disable_unprepare(qp->num_clks, qp->bus_clks);
+		return ret;
 	}
 
 	for (i = 0; i < num_nodes; i++) {
@@ -710,7 +726,7 @@ static int msm8974_icc_probe(struct platform_device *pdev)
 		node = icc_node_create(qnodes[i]->id);
 		if (IS_ERR(node)) {
 			ret = PTR_ERR(node);
-			goto err_del_icc;
+			goto err;
 		}
 
 		node->name = qnodes[i]->name;
@@ -731,32 +747,10 @@ static int msm8974_icc_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_del_icc:
-	list_for_each_entry(node, &provider->nodes, node_list) {
-		icc_node_del(node);
-		icc_node_destroy(node->id);
-	}
-	icc_provider_del(provider);
-
-err_disable_clks:
-	clk_bulk_disable_unprepare(qp->num_clks, qp->bus_clks);
+err:
+	msm8974_icc_remove(pdev);
 
 	return ret;
-}
-
-static int msm8974_icc_remove(struct platform_device *pdev)
-{
-	struct msm8974_icc_provider *qp = platform_get_drvdata(pdev);
-	struct icc_provider *provider = &qp->provider;
-	struct icc_node *n;
-
-	list_for_each_entry(n, &provider->nodes, node_list) {
-		icc_node_del(n);
-		icc_node_destroy(n->id);
-	}
-	clk_bulk_disable_unprepare(qp->num_clks, qp->bus_clks);
-
-	return icc_provider_del(provider);
 }
 
 static const struct of_device_id msm8974_noc_of_match[] = {
