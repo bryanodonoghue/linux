@@ -771,15 +771,9 @@ static int cmp_vcd(const void *_l, const void *_r)
 static int qnoc_remove(struct platform_device *pdev)
 {
 	struct qcom_icc_provider *qp = platform_get_drvdata(pdev);
-	struct icc_provider *provider = &qp->provider;
-	struct icc_node *n, *tmp;
 
-	list_for_each_entry_safe_reverse(n, tmp, &provider->nodes, node_list) {
-		icc_node_del(n);
-		icc_node_destroy(n->id);
-	}
-
-	return icc_provider_del(provider);
+	icc_nodes_remove(&qp->provider);
+	return icc_provider_del(&qp->provider);
 }
 
 static int qnoc_probe(struct platform_device *pdev)
