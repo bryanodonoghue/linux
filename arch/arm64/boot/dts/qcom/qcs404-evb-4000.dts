@@ -92,3 +92,7 @@
 		};
 	};
 };
+
+&sdcc1 {
+	status = "disabled";
+};
