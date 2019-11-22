@@ -39,55 +39,12 @@ struct ssphy_priv {
 	struct reset_control *reset_phy;
 	struct regulator_bulk_data regs[NUM_BULK_REGS];
 	struct clk_bulk_data clks[NUM_BULK_CLKS];
-	struct vbus_regulator {
-		struct regulator *consumer;
-		bool voted; /* regulator balancing: extcon controlled voltage */
-	} vbus;
 	enum phy_mode mode;
 };
 
 static inline void qcom_ssphy_updatel(void __iomem *addr, u32 mask, u32 val)
 {
 	writel((readl(addr) & ~mask) | val, addr);
-}
-
-static int qcom_ssphy_vbus_enable(struct vbus_regulator *vbus)
-{
-	int ret;
-
-	if (vbus->voted)
-		return 0;
-
-	ret = regulator_enable(vbus->consumer);
-	if (!ret) {
-		/* use count only increments on success */
-		vbus->voted = true;
-	}
-
-	return ret;
-}
-
-static int qcom_ssphy_vbus_disable(struct vbus_regulator *vbus)
-{
-	if (!vbus->voted)
-		return 0;
-
-	vbus->voted = false;
-
-	return regulator_disable(vbus->consumer);
-}
-
-static int qcom_ssphy_vbus_ctrl(struct vbus_regulator *vbus, enum phy_mode mode)
-{
-	if (mode == PHY_MODE_INVALID)
-		return 0;
-
-	/* gadget attached */
-	if (mode == PHY_MODE_USB_HOST)
-		return qcom_ssphy_vbus_enable(vbus);
-
-	/* USB_DEVICE: gadget removed: enable detection */
-	return qcom_ssphy_vbus_disable(vbus);
 }
 
 static int qcom_ssphy_do_reset(struct ssphy_priv *priv)
@@ -143,14 +100,9 @@ static int qcom_ssphy_power_on(struct phy *phy)
 	if (ret)
 		goto err_disable_regulator;
 
-	/* depending on the extcon reported mode, enable or disable vbus */
-	ret = qcom_ssphy_vbus_ctrl(&priv->vbus, priv->mode);
-	if (ret)
-		goto err_disable_clock;
-
 	ret = qcom_ssphy_do_reset(priv);
 	if (ret)
-		goto err_disable_vbus;
+		goto err_disable_clock;
 
 	writeb(SWI_PCS_CLK_SEL, priv->base + PHY_CTRL0);
 	qcom_ssphy_updatel(priv->base + PHY_CTRL4, LANE0_PWR_ON, LANE0_PWR_ON);
@@ -158,9 +110,6 @@ static int qcom_ssphy_power_on(struct phy *phy)
 	qcom_ssphy_updatel(priv->base + PHY_CTRL4, TST_PWR_DOWN, 0);
 
 	return 0;
-
-err_disable_vbus:
-	qcom_ssphy_vbus_disable(&priv->vbus);
 err_disable_clock:
 	clk_bulk_disable_unprepare(NUM_BULK_CLKS, priv->clks);
 err_disable_regulator:
@@ -179,7 +128,6 @@ static int qcom_ssphy_power_off(struct phy *phy)
 
 	clk_bulk_disable_unprepare(NUM_BULK_CLKS, priv->clks);
 	regulator_bulk_disable(NUM_BULK_REGS, priv->regs);
-	qcom_ssphy_vbus_disable(&priv->vbus);
 
 	return 0;
 }
@@ -206,14 +154,6 @@ static int qcom_ssphy_init_regulator(struct ssphy_priv *priv)
 		return ret;
 	}
 
-	priv->vbus.voted = false;
-	priv->vbus.consumer = devm_regulator_get(priv->dev, "vbus");
-	if (IS_ERR(priv->vbus.consumer)) {
-		ret = PTR_ERR(priv->vbus.consumer);
-		if (ret != -EPROBE_DEFER)
-			dev_err(priv->dev, "Failed to get vbus regulator\n");
-	}
-
 	return ret;
 }
 
@@ -237,21 +177,7 @@ static int qcom_ssphy_init_reset(struct ssphy_priv *priv)
 	return 0;
 }
 
-static int qcom_ssphy_set_mode(struct phy *phy, enum phy_mode mode, int submode)
-{
-	struct ssphy_priv *priv = phy_get_drvdata(phy);
-
-	if (mode != PHY_MODE_USB_HOST && mode != PHY_MODE_USB_DEVICE)
-		return -EINVAL;
-
-	priv->mode = mode;
-	dev_dbg(priv->dev, "mode %d\n", mode);
-
-	return qcom_ssphy_vbus_ctrl(&priv->vbus, priv->mode);
-}
-
 static const struct phy_ops qcom_ssphy_ops = {
-	.set_mode = qcom_ssphy_set_mode,
 	.power_off = qcom_ssphy_power_off,
 	.power_on = qcom_ssphy_power_on,
 	.owner = THIS_MODULE,
