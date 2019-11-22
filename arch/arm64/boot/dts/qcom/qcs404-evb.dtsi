@@ -45,10 +45,12 @@
 		enable-active-high;
 	};
 
-	usb3_con: usb3-connector {
-		compatible = "linux,extcon-usb-gpio";
+	usb3_con: usb3_connector {
+		compatible = "gpio-usb-b-connector";
+		label = "USB-C";
 		id-gpio = <&tlmm 116 GPIO_ACTIVE_HIGH>;
 		vbus-gpio = <&pms405_gpios 12 GPIO_ACTIVE_HIGH>;
+		vbus-supply = <&usb3_vbus_reg>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&usb3_id_pin>, <&usb3_vbus_pin>;
 	};
@@ -347,12 +349,7 @@
 };
 
 &usb3 {
-	extcon = <&usb3_con>;
 	status = "okay";
-
-	dwc3@7580000 {
-		extcon = <&usb3_con>;
-	};
 };
 
 &usb3_phy {
