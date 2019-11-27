@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Device Tree Source for the Kingfisher (ULCB extension) board
  *
  * Copyright (C) 2017 Renesas Electronics Corp.
  * Copyright (C) 2017 Cogent Embedded, Inc.
+ *
+ * This file is licensed under the terms of the GNU General Public License
+ * version 2.  This program is licensed "as is" without any warranty of any
+ * kind, whether express or implied.
  */
 
 / {
@@ -126,50 +129,112 @@
 	sound_ext: sound@0 {
 		pinctrl-0 = <&sound_0_pins>;
 		pinctrl-names = "default";
+		compatible = "simple-audio-card";
 
-		compatible = "audio-graph-card";
+		simple-audio-card,format = "left_j";
+		simple-audio-card,name = "pcm3168a";
 
-		label = "pcm3168a";
+		simple-audio-card,bitclock-master = <&sound_ext_master>;
+		simple-audio-card,frame-master = <&sound_ext_master>;
+		sound_ext_master: simple-audio-card,cpu@0 {
+			sound-dai = <&rcar_sound 0>;
+			dai-tdm-slot-num = <8>;
+			dai-tdm-slot-width = <32>;
+		};
 
-		dais = <&rsnd_port0>;
+		simple-audio-card,codec@0 {
+			sound-dai = <&pcm3168a>;
+			dai-tdm-slot-num = <8>;
+			dai-tdm-slot-width = <32>;
+			system-clock-frequency = <24576000>;
+		};
 	};
 
 	/delete-node/sound;
 
 	rsnd_ak4613: sound@1 {
-		compatible = "audio-graph-card";
+		pinctrl-0 = <&sound_pins>;
+		pinctrl-names = "default";
+		compatible = "simple-audio-card";
 
-		label = "ak4613";
+		simple-audio-card,format = "left_j";
+		simple-audio-card,name = "ak4613";
 
-		dais = <&rsnd_port1>;
+		simple-audio-card,bitclock-master = <&sndcpu>;
+		simple-audio-card,frame-master = <&sndcpu>;
+
+		sndcpu: simple-audio-card,cpu@1 {
+			sound-dai = <&rcar_sound 1>;
+		};
+
+		sndcodec: simple-audio-card,codec@1 {
+			sound-dai = <&ak4613>;
+		};
 	};
 
 	sound_radio: sound@2 {
 		pinctrl-0 = <&sound_2_pins>;
 		pinctrl-names = "default";
+		compatible = "simple-audio-card";
 
-		compatible = "audio-graph-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "radio";
 
-		label = "radio";
+		simple-audio-card,bitclock-master = <&sound_radio_master>;
+		simple-audio-card,frame-master = <&sound_radio_master>;
+		simple-audio-card,cpu@2 {
+			sound-dai = <&rcar_sound 2>;
+		};
 
-		dais = <&rsnd_port2>;
+		sound_radio_master: simple-audio-card,codec@2 {
+			sound-dai = <&radio>;
+			system-clock-frequency = <12288000>;
+		};
 	};
 
 	sound_wl18xx: sound@3 {
 		pinctrl-0 = <&sound_3_pins>;
 		pinctrl-names = "default";
+		compatible = "simple-audio-card";
 
-		compatible = "audio-graph-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "wl18xx";
 
-		label = "wl18xx";
+		simple-audio-card,bitclock-master = <&sound_wl18xx_master>;
+		simple-audio-card,frame-master = <&sound_wl18xx_master>;
+		sound_wl18xx_master: simple-audio-card,cpu@3 {
+			sound-dai = <&rcar_sound 3>;
+		};
 
-		dais = <&rsnd_port3>;
+		simple-audio-card,codec@3 {
+			sound-dai = <&wl18xx_pcm>;
+		};
 	};
 
-	lvds: lvds {
+	lvds {
+		compatible = "panel-lvds";
+
+		width-mm = <210>;
+		height-mm = <158>;
+
+		data-mapping = "jeida-24";
+
+		panel-timing {
+			/* 1280x800 @60Hz */
+			clock-frequency = <65000000>;
+			hactive = <1280>;
+			vactive = <800>;
+			hsync-len = <40>;
+			hfront-porch = <80>;
+			hback-porch = <40>;
+			vfront-porch = <14>;
+			vback-porch = <14>;
+			vsync-len = <4>;
+		};
+
 		port {
 			lvds_in: endpoint {
-				remote-endpoint = <&lvds0_out>;
+				remote-endpoint = <&du_out_lvds0>;
 			};
 		};
 	};
@@ -189,23 +254,14 @@
 		compatible = "si,si468x-pcm";
 		status = "okay";
 
-		port {
-			radio_endpoint: endpoint {
-				remote-endpoint = <&rsnd_endpoint2>;
-				system-clock-frequency = <12288000>;
-			};
-		};
+		#sound-dai-cells = <0>;
 	};
 
 	wl18xx_pcm: wl18xx_pcm@0 {
 		compatible = "ti,wl18xx-pcm";
 		status = "okay";
 
-		port {
-			wl18xx_pcm_endpoint: endpoint {
-				remote-endpoint = <&rsnd_endpoint3>;
-			};
-		};
+		#sound-dai-cells = <0>;
 	};
 
 	camera_clk: camera_clk {
@@ -214,10 +270,6 @@
 		clock-frequency = <24000000>;
 		clock-output-names = "mclk";
 	};
-};
-
-&ak4613_endpoint {
-	remote-endpoint = <&rsnd_endpoint1>;
 };
 
 &can0 {
@@ -308,8 +360,16 @@
 };
 
 &ehci0 {
-	dr_mode = "otg";
 	status = "okay";
+};
+
+&gpio2 {
+	bl_pwm {
+		gpio-hog;
+		gpios = <3 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "BL PWM 100%";
+	};
 };
 
 &gpio4 {
@@ -346,7 +406,6 @@
 };
 
 &hsusb {
-	dr_mode = "otg";
 	status = "okay";
 };
 
@@ -369,21 +428,18 @@
 			output-high;
 			line-name = "HUB pwen";
 		};
-
 		hub_rst {
 			gpio-hog;
 			gpios = <7 GPIO_ACTIVE_HIGH>;
 			output-high;
 			line-name = "HUB rst";
 		};
-
-		otg_offvbusn {
+		otg_offvbus {
 			gpio-hog;
 			gpios = <8 GPIO_ACTIVE_HIGH>;
 			output-low;
-			line-name = "OTG OFFVBUSn";
+			line-name = "OTG off VBUSn";
 		};
-
 		otg_extlpn {
 			gpio-hog;
 			gpios = <9 GPIO_ACTIVE_HIGH>;
@@ -541,15 +597,6 @@
 				VCCAD2-supply = <&codec_en_reg>;
 				VCCDA1-supply = <&amp_en_reg>;
 				VCCDA2-supply = <&amp_en_reg>;
-
-				port {
-					pcm3168a_endpoint: endpoint {
-						remote-endpoint = <&rsnd_endpoint0>;
-						dai-tdm-slot-num = <8>;
-						dai-tdm-slot-width = <32>;
-						system-clock-frequency = <24576000>;
-					};
-				};
 			};
 
 			lsm9ds0_acc_mag@1d {
@@ -688,7 +735,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <0x71>;
-		reset-gpios = <&gpio3 15 GPIO_ACTIVE_LOW>;
+		reset-gpios= <&gpio3 15 GPIO_ACTIVE_LOW>;
 
 		i2c@0 {
 			#address-cells = <1>;
@@ -1038,12 +1085,29 @@
 	};
 };
 
-&msiof1 {
+/*&msiof1 {
 	status = "disabled";
-};
+};*/
+&msiof1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&msiof1_pins>;
+	status = "okay";
 
+	tcan4x5x: tcan4x5x@0 {
+		compatible = "ti,tcan4x5x";
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		spi-max-frequency = <10000000>;
+		bosch,mram-cfg = <0x0 0 0 32 0 0 1 1>;
+		data-ready-gpios = <&gpio1 14 GPIO_ACTIVE_LOW>;
+		device-state-gpios = <&gpio3 21 GPIO_ACTIVE_HIGH>;		
+		device-wake-gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+
+/*		reset-gpios = <&gpio1 27 GPIO_ACTIVE_LOW>;*/
+	};
+};
 &ohci0 {
-	dr_mode = "otg";
 	status = "okay";
 };
 
@@ -1082,6 +1146,18 @@
 	canfd1_pins: canfd1 {
 		groups = "canfd1_data";
 		function = "canfd1";
+	};
+
+	msiof0_pins: spi1 {
+		groups = "msiof0_clk", "msiof0_rxd",  "msiof0_txd",
+			 "msiof0_ss1";
+		function = "msiof0";
+	};
+
+	msiof1_pins: spi2 {
+		groups = "msiof1_clk_a", "msiof1_rxd_a", "msiof1_txd_a",
+			 "msiof1_ss1_a";
+		function = "msiof1";
 	};
 
 	du_pins: du {
@@ -1151,61 +1227,24 @@
 	/* Multi DAI */
 	#sound-dai-cells = <1>;
 
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-		rsnd_port0: port@0 {
-			reg = <0>;
-			rsnd_endpoint0: endpoint {
-				remote-endpoint = <&pcm3168a_endpoint>;
-
-				dai-format = "left_j";
-				bitclock-master = <&pcm3168a_endpoint>;
-				frame-master = <&pcm3168a_endpoint>;
-				dai-tdm-slot-num = <8>;
-				dai-tdm-slot-width = <32>;
-
-				playback = <&ssi3>;
-				capture  = <&ssi4>;
-			};
+	rcar_sound,dai {
+		dai0 {
+			playback = <&ssi3>;
+			capture  = <&ssi4>;
 		};
-		rsnd_port1: port@1 {
-			reg = <1>;
-			rsnd_endpoint1: endpoint {
-				remote-endpoint = <&ak4613_endpoint>;
 
-				dai-format = "left_j";
-				bitclock-master = <&rsnd_endpoint1>;
-				frame-master = <&rsnd_endpoint1>;
-
-				playback = <&ssi0 &src0 &dvc0>;
-				capture  = <&ssi1 &src1 &dvc1>;
-			};
+		dai1 {
+			playback = <&ssi0 &src0 &dvc0>;
+			capture  = <&ssi1 &src1 &dvc1>;
 		};
-		rsnd_port2: port@2  {
-			reg = <2>;
-			rsnd_endpoint2: endpoint {
-				remote-endpoint = <&radio_endpoint>;
 
-				dai-format = "i2s";
-				bitclock-master = <&radio_endpoint>;
-				frame-master = <&radio_endpoint>;
-
-				capture  = <&ssi6>;
-			};
+		dai2 {
+			capture  = <&ssi6>;
 		};
-		rsnd_port3: port@3  {
-			reg = <3>;
-			rsnd_endpoint3: enpoint {
-				remote-endpoint = <&wl18xx_pcm_endpoint>;
 
-				simple-audio-card,format = "i2s";
-				bitclock-master = <&wl18xx_pcm_endpoint>;
-				frame-master = <&wl18xx_pcm_endpoint>;
-
-				playback = <&ssi7>;
-				capture  = <&ssi8>;
-			};
+		dai3 {
+			playback = <&ssi7>;
+			capture  = <&ssi8>;
 		};
 	};
 };
@@ -1429,9 +1468,6 @@
 &xhci0 {
 	status = "okay";
 };
-
-/* set LVDS panel timings and pins */
-#include "ulcb-kf-panel.dtsi"
 
 
 
