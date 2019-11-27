@@ -44,16 +44,6 @@
 		pinctrl-0 = <&usb3_vbus_boost_pin>;
 		enable-active-high;
 	};
-
-	usb3_con: usb3_connector {
-		compatible = "gpio-usb-b-connector";
-		label = "USB-C";
-		id-gpio = <&tlmm 116 GPIO_ACTIVE_HIGH>;
-		vbus-gpio = <&pms405_gpios 12 GPIO_ACTIVE_HIGH>;
-		vbus-supply = <&usb3_vbus_reg>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb3_id_pin>, <&usb3_vbus_pin>;
-	};
 };
 
 &blsp1_uart3 {
@@ -350,6 +340,19 @@
 
 &usb3 {
 	status = "okay";
+};
+
+&usb3_dwc3 {
+	usb_con: gpio_usb_connector {
+		compatible = "gpio-usb-b-connector";
+		label = "USB-C";
+		id-gpio = <&tlmm 116 GPIO_ACTIVE_HIGH>;
+		vbus-gpio = <&pms405_gpios 12 GPIO_ACTIVE_HIGH>;
+		vbus-supply = <&usb3_vbus_reg>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb3_id_pin>, <&usb3_vbus_pin>;
+		status = "okay";
+	};
 };
 
 &usb3_phy {
