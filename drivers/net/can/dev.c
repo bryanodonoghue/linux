@@ -585,7 +585,7 @@ static void can_restart(struct net_device *dev)
 
 restart:
 	netdev_dbg(dev, "restarted\n");
-	priv->can_stats.restarts++;of_
+	priv->can_stats.restarts++;
 	err = priv->do_set_mode(dev, CAN_MODE_START);
 
 	netif_carrier_on(dev);
