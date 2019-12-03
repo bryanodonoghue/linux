@@ -63,77 +63,12 @@ struct hsphy_priv {
 	struct reset_control *phy_reset;
 	struct reset_control *por_reset;
 	struct regulator_bulk_data vregs[VREG_NUM];
-	unsigned int voltages[VREG_NUM][VOL_NUM];
 	const struct hsphy_data *data;
 	bool cable_connected;
 	struct extcon_dev *vbus_edev;
 	struct notifier_block vbus_notify;
 	enum phy_mode mode;
 };
-
-static int qcom_snps_hsphy_config_regulators(struct hsphy_priv *priv, int high)
-{
-	int old_uV[VREG_NUM];
-	int min, ret, i;
-
-	min = high ? 1 : 0; /* low or none? */
-
-	for (i = 0; i < VREG_NUM; i++) {
-		old_uV[i] = regulator_get_voltage(priv->vregs[i].consumer);
-		ret = regulator_set_voltage(priv->vregs[i].consumer,
-					    priv->voltages[i][min],
-					    priv->voltages[i][VOL_MAX]);
-		if (ret)
-			goto roll_back;
-	}
-
-	return 0;
-
-roll_back:
-	for (; i >= 0; i--)
-		regulator_set_voltage(priv->vregs[i].consumer,
-				      old_uV[i], old_uV[i]);
-	return ret;
-}
-
-static int qcom_snps_hsphy_enable_regulators(struct hsphy_priv *priv)
-{
-	int ret;
-
-	ret = qcom_snps_hsphy_config_regulators(priv, 1);
-	if (ret)
-		return ret;
-
-	ret = regulator_set_load(priv->vregs[VDDA_1P8].consumer, 19000);
-	if (ret < 0)
-		goto unconfig_regulators;
-
-	ret = regulator_set_load(priv->vregs[VDDA_3P3].consumer, 16000);
-	if (ret < 0)
-		goto unset_1p8_load;
-
-	ret = regulator_bulk_enable(VREG_NUM, priv->vregs);
-	if (ret)
-		goto unset_3p3_load;
-
-	return 0;
-
-unset_3p3_load:
-	regulator_set_load(priv->vregs[VDDA_3P3].consumer, 0);
-unset_1p8_load:
-	regulator_set_load(priv->vregs[VDDA_1P8].consumer, 0);
-unconfig_regulators:
-	qcom_snps_hsphy_config_regulators(priv, 0);
-	return ret;
-}
-
-static void qcom_snps_hsphy_disable_regulators(struct hsphy_priv *priv)
-{
-	regulator_bulk_disable(VREG_NUM, priv->vregs);
-	regulator_set_load(priv->vregs[VDDA_1P8].consumer, 0);
-	regulator_set_load(priv->vregs[VDDA_3P3].consumer, 0);
-	qcom_snps_hsphy_config_regulators(priv, 0);
-}
 
 static int qcom_snps_hsphy_set_mode(struct phy *phy, enum phy_mode mode,
 				    int submode)
@@ -228,6 +163,7 @@ static int qcom_snps_hsphy_vbus_notifier(struct notifier_block *nb,
 	struct hsphy_priv *priv = container_of(nb, struct hsphy_priv,
 						    vbus_notify);
 	priv->cable_connected = !!event;
+
 	return 0;
 }
 
@@ -242,16 +178,22 @@ static int qcom_snps_hsphy_power_on(struct phy *phy)
 			return ret;
 		qcom_snps_hsphy_disable_hv_interrupts(priv);
 	} else {
-		ret = qcom_snps_hsphy_enable_regulators(priv);
+
+		ret = regulator_bulk_enable(VREG_NUM, priv->vregs);
 		if (ret)
 			return ret;
 		ret = clk_bulk_prepare_enable(priv->num_clks, priv->clks);
 		if (ret)
-			return ret;
+			goto err_disable_regulator;
 		qcom_snps_hsphy_exit_retention(priv);
 	}
 
 	return 0;
+
+err_disable_regulator:
+	regulator_bulk_disable(VREG_NUM, priv->regs);
+
+	return ret;
 }
 
 static int qcom_snps_hsphy_power_off(struct phy *phy)
@@ -264,7 +206,7 @@ static int qcom_snps_hsphy_power_off(struct phy *phy)
 	} else {
 		qcom_snps_hsphy_enter_retention(priv);
 		clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
-		qcom_snps_hsphy_disable_regulators(priv);
+		regulator_bulk_disable(VREG_NUM, priv->vregs);
 	}
 
 	return 0;
@@ -436,21 +378,6 @@ static int qcom_snps_hsphy_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	priv->voltages[VDDA_1P8][VOL_NONE] = 0;
-	priv->voltages[VDDA_1P8][VOL_MIN] = 1800000;
-	priv->voltages[VDDA_1P8][VOL_MAX] = 1800000;
-
-	priv->voltages[VDDA_3P3][VOL_NONE] = 0;
-	priv->voltages[VDDA_3P3][VOL_MIN] = 3050000;
-	priv->voltages[VDDA_3P3][VOL_MAX] = 3300000;
-
-	ret = of_property_read_u32_array(dev->of_node, "qcom,vdd-voltage-level",
-					 priv->voltages[VDD], VOL_NUM);
-	if (ret) {
-		dev_err(dev, "failed to read qcom,vdd-voltage-level\n");
-		return ret;
-	}
-
 	extcon_node = of_graph_get_remote_node(dev->of_node, -1, -1);
 	if (extcon_node) {
 		priv->vbus_edev = extcon_find_edev_by_node(extcon_node);
@@ -483,7 +410,23 @@ static int qcom_snps_hsphy_probe(struct platform_device *pdev)
 	phy_set_drvdata(phy, priv);
 
 	provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
-	return PTR_ERR_OR_ZERO(provider);
+	if (IS_ERR(provider))
+		return PTR_ERR(provider);
+
+	ret = regulator_set_load(priv->vregs[VDDA_1P8].consumer, 19000);
+	if (ret < 0)
+		return ret;
+
+	ret = regulator_set_load(priv->vregs[VDDA_3P3].consumer, 16000);
+	if (ret < 0)
+		goto unset_1p8_load;
+
+	return 0;
+
+unset_1p8_load:
+	regulator_set_load(priv->vregs[VDDA_1P8].consumer, 0);
+
+	return ret;
 }
 
 /*
