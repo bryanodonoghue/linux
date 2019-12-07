@@ -36,12 +36,12 @@
 
 	usb3_vbus_reg: regulator-usb3-vbus {
 		compatible = "regulator-fixed";
-		regulator-name = "VBUS_5V";
+		regulator-name = "VBUS_BOOST_5V";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		gpio = <&pms405_gpios 3 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&usb3_vbus_boost_pin>;
+		pinctrl-0 = <&usb_vbus_boost_pin>;
 		enable-active-high;
 	};
 };
@@ -298,7 +298,7 @@
 };
 
 &pms405_gpios {
-	usb3_vbus_boost_pin: usb3-vbus-boost-pin {
+	usb_vbus_boost_pin: usb-vbus-boost-pin {
 		pinconf {
 			pins = "gpio3";
 			function = PMIC_GPIO_FUNC_NORMAL;
