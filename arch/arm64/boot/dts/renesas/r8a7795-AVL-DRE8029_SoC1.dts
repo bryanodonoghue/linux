@@ -45,7 +45,7 @@
 		};
 	};
 
-    /* External DU dot clocks */
+	/* External DU dot clocks */
 	x21_clk: x21-clock {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -65,22 +65,22 @@
 	};
 
 	msiof0_pins: spi0 {
-        groups = "msiof0_clk", "msiof0_sync",
-        "msiof0_rxd", "msiof0_txd";
-        function = "msiof0";
-    };
+		groups = "msiof0_clk", "msiof0_sync",
+			 "msiof0_rxd", "msiof0_txd";
+		function = "msiof0";
+ 	};
 	
-    msiof1_pins: spi1 {
-        groups = "msiof1_clk_a", "msiof1_sync_a",
-        "msiof1_rxd_a", "msiof1_txd_a";
-        function = "msiof1";
-    };
+	msiof1_pins: spi1 {
+		groups = "msiof1_clk_a", "msiof1_sync_a",
+			  "msiof1_rxd_a", "msiof1_txd_a";
+		function = "msiof1";
+	};
 
-    msiof3_pins: spi3 {
-        groups = "msiof3_clk_b", "msiof3_sync_b",
-        "msiof3_rxd_b", "msiof3_txd_b";
-        function = "msiof3";
-    };
+	msiof3_pins: spi3 {
+		groups = "msiof3_clk_b", "msiof3_sync_b",
+			  "msiof3_rxd_b", "msiof3_txd_b";
+		function = "msiof3";
+	};
 
 	pwm3_pins: pwm3 {
 		groups = "pwm3_a";
@@ -163,7 +163,18 @@
 
     /* status = "okay"; */
 
-    /* Add a subnode. */
+    slavedev {
+		compatible = "ti,tcan4x5x";
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		spi-max-frequency = <10000000>;
+		bosch,mram-cfg = <0x0 0 0 32 0 0 1 1>;
+		data-ready-gpios = <&gpio1 14 GPIO_ACTIVE_LOW>;
+		device-state-gpios = <&gpio3 21 GPIO_ACTIVE_HIGH>;
+		device-wake-gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio1 27 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &msiof3 {
@@ -179,6 +190,23 @@
 		spi-cpha;
 		spi-cpol;
     };
+};
+
+/*Enable Ethernet Controller for Ethernet PHY DP83TG720 (TI)*/
+&avb {
+	pinctrl-0 = <&avb_pins>;
+	pinctrl-names = "default";
+	phy-handle = <&phy0>;
+	phy-mode = "rgmii-txid";
+	status = "okay";
+
+	phy0: ethernet-phy@0 {
+		rxc-skew-ps = <1500>;
+		reg = <0>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&gpio2 10 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &lvds0 {

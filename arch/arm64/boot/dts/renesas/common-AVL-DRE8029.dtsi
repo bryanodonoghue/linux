@@ -69,7 +69,7 @@
 		};
 	};
 
-    reg3: regulator3 {
+	reg3: regulator3 {
 		compatible = "regulator-fixed";
 		regulator-name = "fixed-0.85V";
 		regulator-min-microvolt = <850000>;
@@ -96,7 +96,7 @@
 		regulator-always-on;
 	};
 
-    vbus0_usb2: regulator-vbus0-usb2 {
+	vbus0_usb2: regulator-vbus0-usb2 {
 		compatible = "regulator-fixed";
 
 		regulator-name = "USB20_VBUS0";
@@ -127,7 +127,7 @@
 		};
 	};
 
-    /* External DU dot clocks */
+	/* External DU dot clocks */
 	x22_clk: x22-clock {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -210,7 +210,7 @@
 	};
 
 	sdhi3_pins_uhs: sd3_uhs {
-		groups = "sdhi3_data8", "sdhi3_ctrl", "sdhi2_3s";
+		groups = "sdhi3_data8", "sdhi3_ctrl", "sdhi3_ds";
 		function = "sdhi3";
 		power-source = <1800>;
 	};
@@ -226,14 +226,10 @@
 			function = "usb1";
 		};
 
-		ovc {
-			pins = "GP_6_27";
+		/* reset pin */
+		reset_n {
+			pins = "GP_4_0";
 			bias-pull-up;
-		};
-
-		pwen {
-			pins = "GP_6_26";
-			bias-pull-down;
 		};
 	};
 
@@ -277,6 +273,7 @@
 	clocks = <&cpg CPG_MOD 723>, <&x22_clk>;
 	clock-names = "du.1", "dclkin.1";
 };
+
 &i2c0 {
 	status = "okay";
 
@@ -520,7 +517,7 @@
 &vin0 {
 	status = "okay";
 
-    ports {
+	ports {
 		#address-cells = <1>;
 		#size-cells = <0>;
 
@@ -825,30 +822,33 @@
 	mmc-hs200-1_8v;
 	non-removable;
 	//drive-strength = <1>;
-	fixed-emmc-driver-type = <1>;
+	//fixed-emmc-driver-type = <1>;
 	status = "okay";
 };
 
 &ehci0 {
-	dr_mode = "otg";
+	dr_mode = "host";
 	status = "okay";
 };
 
 &ehci1 {
+	dr_mode = "host";
 	status = "okay";
 };
 
 &ohci0 {
-	dr_mode = "otg";
+	dr_mode = "host";
 	status = "okay";
 };
 
 &ohci1 {
+	dr_mode = "host";
 	status = "okay";
 };
 
+
 &hsusb {
-	dr_mode = "otg";
+	dr_mode = "host";
 	status = "okay";
 };
 
@@ -882,6 +882,7 @@
 	status = "okay";
 };
 
+/* Set usbs0_clk rate to zero to indicate not present */
 &usb3s0_clk {
 	clock-frequency = <100000000>;
 };
@@ -889,6 +890,5 @@
 &xhci0 {
 	pinctrl-0 = <&usb30_pins>;
 	pinctrl-names = "default";
-
 	status = "okay";
 };
