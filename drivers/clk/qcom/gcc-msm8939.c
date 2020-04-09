@@ -13,6 +13,8 @@
 #include <linux/clk-provider.h>
 #include <linux/regmap.h>
 #include <linux/reset-controller.h>
+#include <linux/init.h>
+#include <linux/clk.h>
 
 #include <dt-bindings/clock/qcom,gcc-msm8939.h>
 #include <dt-bindings/reset/qcom,gcc-msm8939.h>
@@ -3938,9 +3940,66 @@ static const struct of_device_id gcc_msm8939_match_table[] = {
 };
 MODULE_DEVICE_TABLE(of, gcc_msm8939_match_table);
 
+#define EARLYCON_PCLK_DT_STR "qcom,earlycon-pclk-disable"
+int gcc_msm8939_add_dt_earlycon_pclk_disable(struct device *dev,
+					     struct device_node *np)
+{
+	struct property *newprop;
+
+	newprop = devm_kzalloc(dev, sizeof(*newprop), GFP_KERNEL);
+	if (!newprop)
+		return -ENOMEM;
+
+	newprop->name = devm_kstrdup(dev, EARLYCON_PCLK_DT_STR, GFP_KERNEL);
+	if (!newprop->name)
+		return -ENOMEM;
+
+	return of_update_property(np, newprop);
+}
+
+int gcc_msm8939_fix_earlycon_pclk_refcount(struct device *dev)
+{
+	const char *address[] = {
+		"78af000",
+		"78b0000",
+	};
+	struct device_node *np;
+	char tmp[32];
+	char *str;
+	int i;
+	int ret = 0;
+
+	/* Determine if earlycon active and if so which port */
+	for (i = 0; i < ARRAY_SIZE(address); i++) {
+		scnprintf(tmp, sizeof(tmp),
+			  "earlycon=msm_serial_dm,0x%s", address[i]);
+		str = strstr(saved_command_line, tmp);
+		if (str)
+			break;
+	}
+	if (!str)
+		return 0;
+
+	/* Find serial device OF node corresponding to earlycon address */
+	scnprintf(tmp, sizeof(tmp), "/soc/serial@%s", address[i]);
+	np = of_find_node_by_path(tmp);
+	if (!np) {
+		dev_err(dev, "missing DT entry %s\n", tmp);
+		return -ENODEV;
+	}
+
+	/* Add the property unless previously declared */
+	if (!of_property_read_bool(np, EARLYCON_PCLK_DT_STR))
+		gcc_msm8939_add_dt_earlycon_pclk_disable(dev, np);
+
+	/* Increment reference count of clock */
+	return clk_prepare_enable(gcc_blsp1_ahb_clk.clkr.hw.clk);
+}
+
 static int gcc_msm8939_probe(struct platform_device *pdev)
 {
 	struct regmap *regmap;
+	int ret;
 
 	regmap = qcom_cc_map(pdev, &gcc_msm8939_desc);
 	if (IS_ERR(regmap))
@@ -3949,7 +4008,11 @@ static int gcc_msm8939_probe(struct platform_device *pdev)
 	clk_pll_configure_sr_hpm_lp(&gpll3, regmap, &gpll3_config, true);
 	clk_pll_configure_sr_hpm_lp(&gpll4, regmap, &gpll4_config, true);
 
-	return qcom_cc_really_probe(pdev, &gcc_msm8939_desc, regmap);
+	ret = qcom_cc_really_probe(pdev, &gcc_msm8939_desc, regmap);
+	if (ret)
+		return ret;
+
+	return gcc_msm8939_fix_earlycon_pclk_refcount(&pdev->dev);
 }
 
 static struct platform_driver gcc_msm8939_driver = {
