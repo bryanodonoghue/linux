@@ -179,6 +179,7 @@ struct msm_port {
 	bool			break_detected;
 	struct msm_dma		tx_dma;
 	struct msm_dma		rx_dma;
+	bool			earlycon_pclk_disable;
 };
 
 #define UART_TO_MSM(uart_port)	container_of(uart_port, struct msm_port, uart)
@@ -1189,6 +1190,10 @@ static void msm_init_clock(struct uart_port *port)
 
 	clk_prepare_enable(msm_port->clk);
 	clk_prepare_enable(msm_port->pclk);
+	if (msm_port->earlycon_pclk_disable) {
+		msm_port->earlycon_pclk_disable = false;
+		clk_disable_unprepare(msm_port->pclk);
+	}
 	msm_serial_set_mnd_regs(port);
 }
 
@@ -1820,6 +1825,9 @@ static int msm_serial_probe(struct platform_device *pdev)
 		if (IS_ERR(msm_port->pclk))
 			return PTR_ERR(msm_port->pclk);
 	}
+
+	if (of_property_read_bool(pdev->dev.of_node, "qcom,earlycon-pclk-disable"))
+		msm_port->earlycon_pclk_disable = true;
 
 	port->uartclk = clk_get_rate(msm_port->clk);
 	dev_info(&pdev->dev, "uartclk = %d\n", port->uartclk);
