@@ -64,6 +64,14 @@ PROPERTIES
                 from the ULPI_EXT_VENDOR_SPECIFIC address, for example,
                 <0x1 0x53> would mean "write the value 0x53 to address 0x81".
 
+- qcom,enable-vbus-pullup:
+   Usage: optional
+   Value type: <bool>
+   Definition: Flag to indicate if the USB PHY driver should toggle internal
+               VBUS line pullup bits when powering the PHY on or off. If VBUS is
+               is not routed to a GPIO and you don't have an external pullup
+               on the VBUS input you likely want to switch this on.
+
 EXAMPLE
 
 otg: usb-controller {
