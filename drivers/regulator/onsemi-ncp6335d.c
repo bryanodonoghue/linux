@@ -814,6 +814,7 @@ static int ncp6335d_regulator_probe(struct i2c_client *client,
 		dd->min_slew_ns	= NCP6335D_MIN_SLEW_NS;
 		dd->max_slew_ns	= NCP6335D_MAX_SLEW_NS;
 	}
+	rdesc.uV_step = dd->step_size;
 
 	dd->regmap = devm_regmap_init_i2c(client, &ncp6335d_regmap_config);
 	if (IS_ERR(dd->regmap)) {
