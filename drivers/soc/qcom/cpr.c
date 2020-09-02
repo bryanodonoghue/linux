@@ -1720,7 +1720,7 @@ static int cpr_probe(struct platform_device *pdev)
 	int irq, ret;
 	const struct cpr_acc_desc *data;
 	struct device_node *np;
-	u32 cpr_rev = FUSE_REVISION_UNKNOWN;
+	u32 cpr_rev = FUSE_REVISION_UNKNOWN, cpr_rev_high;
 
 	data = of_device_get_match_data(dev);
 	if (!data || !data->cpr_desc || !data->acc_desc)
@@ -1770,6 +1770,10 @@ static int cpr_probe(struct platform_device *pdev)
 	ret = nvmem_cell_read_variable_le_u32(dev, "cpr_fuse_revision", &cpr_rev);
 	if (ret)
 		return ret;
+
+	ret = cpr_read_efuse(dev, "cpr_fuse_revision_high", &cpr_rev_high);
+	if (!ret)
+		cpr_rev |= cpr_rev_high << 1;
 
 	dev_info(drv->dev, "fuse revision %d\n", cpr_rev);
 	drv->cpr_fuses = cpr_get_fuses(drv);
