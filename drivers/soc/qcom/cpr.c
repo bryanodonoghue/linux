@@ -122,7 +122,7 @@
 
 #define CPR_FUSE_MIN_QUOT_DIFF		50
 
-#define FUSE_REVISION_UNKNOWN		(-1)
+#define FUSE_MATCH_ANY			(-1)
 
 enum voltage_change_dir {
 	NO_CHANGE,
@@ -150,6 +150,7 @@ struct fuse_corner_data {
 	/* fuse quot_offset */
 	int quot_offset_scale;
 	int quot_offset_adjust;
+	u32 min_diff_quot;
 };
 
 struct cpr_fuses {
@@ -161,12 +162,10 @@ struct cpr_fuses {
 struct corner_data {
 	unsigned int fuse_corner;
 	unsigned long freq;
-	unsigned int mx_level;
 };
 
 struct cpr_desc {
 	unsigned int num_fuse_corners;
-	int min_diff_quot;
 	int *step_quot;
 
 	unsigned int		timer_delay_us;
@@ -183,7 +182,7 @@ struct cpr_desc {
 	struct cpr_fuses cpr_fuses;
 	bool reduce_to_fuse_uV;
 	bool reduce_to_corner_uV;
-	int *mx_level; /* memory voltage level required by each corner */
+	unsigned int *mx_level; /* memory voltage level */
 };
 
 struct acc_desc {
@@ -250,6 +249,8 @@ struct cpr_drv {
 	const struct cpr_fuse *cpr_fuses;
 
 	struct dentry *debugfs;
+	u16			cpr_fuse_map_count;
+	u16			cpr_fuse_map_match;
 };
 
 static bool cpr_is_allowed(struct cpr_drv *drv)
@@ -450,7 +451,7 @@ static int cpr_scale_voltage(struct cpr_drv *drv, struct corner *corner,
 	if (ret)
 		return ret;
 
-	ret = regulator_set_voltage(drv->vdd_apc, new_uV, new_uV);
+	ret = regulator_set_voltage(drv->vdd_apc, new_uV, fuse_corner->max_uV);
 	if (ret) {
 		dev_err_ratelimited(drv->dev, "failed to set apc voltage %d\n",
 				    new_uV);
@@ -856,6 +857,48 @@ static int cpr_read_fuse_uV(const struct cpr_desc *desc,
 	return DIV_ROUND_UP(uV, step_volt) * step_volt;
 }
 
+static int cpr_corner_get_adjust(struct cpr_drv *drv, char *pname,
+				 unsigned int num_corners, u16 array_num,
+				 u32 **adjust, u32 *pp_valid)
+{
+	struct property *pp;
+	int i, len, index, size;
+	u32 *ptr;
+
+	*pp_valid = 0;
+	pp = of_find_property(drv->dev->of_node, pname, &len);
+	if (!pp)
+		return 0;
+
+	size = num_corners * array_num * sizeof(u32);
+	if (len != size) {
+		dev_err(drv->dev, "prop %s length %d is invalid, %d expected\n",
+			pname, len, size);
+		return -EINVAL;
+	}
+
+	/* use 1st vector if there is only one property array */
+	if (array_num == 1)
+		index = 0;
+	else
+		index = drv->cpr_fuse_map_match * num_corners;
+
+	*adjust = kzalloc(sizeof(u32) * num_corners,
+			GFP_KERNEL);
+	if (!*adjust)
+		return -ENOMEM;
+
+	ptr = *adjust;
+	for (i = 0; i < num_corners; i++, ptr++) {
+		of_property_read_u32_index(drv->dev->of_node,
+				pname, index + i, ptr);
+		dev_dbg(drv->dev, "use %s[%d]: %d\n", pname, i, *ptr);
+	}
+	*pp_valid = 1;
+
+	return 0;
+}
+
 static int cpr_fuse_corner_init(struct cpr_drv *drv)
 {
 	const struct cpr_desc *desc = drv->desc;
@@ -868,6 +911,10 @@ static int cpr_fuse_corner_init(struct cpr_drv *drv)
 	int uV, *mx_level;
 	const struct reg_sequence *accs;
 	int ret;
+	char *quot_pp_name = "quotient-adjustment";
+	char *int_volt_pp_name = "init-voltage-adjustment";
+	u32 *quot_adjust, quot_pp_valid;
+	u32 *init_volt_adjust, volt_pp_valid;
 
 	accs = acc_desc->settings;
 	mx_level = desc->mx_level;
@@ -875,6 +922,20 @@ static int cpr_fuse_corner_init(struct cpr_drv *drv)
 	step_volt = regulator_get_linear_step(drv->vdd_apc);
 	if (!step_volt)
 		return -EINVAL;
+
+	ret = cpr_corner_get_adjust(drv, quot_pp_name,
+				    desc->num_fuse_corners,
+				    drv->cpr_fuse_map_count,
+				    &quot_adjust, &quot_pp_valid);
+	if (ret)
+		return ret;
+
+	ret = cpr_corner_get_adjust(drv, int_volt_pp_name,
+				    desc->num_fuse_corners,
+				    drv->cpr_fuse_map_count,
+				    &init_volt_adjust, &volt_pp_valid);
+	if (ret)
+		goto free_quot_pp;
 
 	/* Populate fuse_corner members */
 	fuse = drv->fuse_corners;
@@ -893,9 +954,13 @@ static int cpr_fuse_corner_init(struct cpr_drv *drv)
 		/* Populate uV */
 		uV = cpr_read_fuse_uV(desc, fdata, fuses->init_voltage,
 				      step_volt, drv);
-		if (uV < 0)
-			return uV;
+		if (uV < 0) {
+			ret = uV;
+			goto free_quot_pp;
+		}
 
+		if (volt_pp_valid)
+			uV += init_volt_adjust[i];
 		fuse->min_uV = fdata->min_uV;
 		fuse->max_uV = fdata->max_uV;
 		fuse->uV = clamp(uV, fuse->min_uV, fuse->max_uV);
@@ -913,11 +978,14 @@ static int cpr_fuse_corner_init(struct cpr_drv *drv)
 		/* Populate target quotient by scaling */
 		ret = nvmem_cell_read_variable_le_u32(drv->dev, fuses->quotient, &fuse->quot);
 		if (ret)
-			return ret;
+			goto free_volt_adjust;
 
 		fuse->quot *= fdata->quot_scale;
 		fuse->quot += fdata->quot_offset;
-		fuse->quot += fdata->quot_adjust;
+		if (quot_pp_valid)
+			fuse->quot += quot_adjust[i];
+		else
+			fuse->quot += fdata->quot_adjust;
 		fuse->step_quot = desc->step_quot[fuse->ring_osc_idx];
 
 		/* Populate acc settings */
@@ -947,7 +1015,8 @@ static int cpr_fuse_corner_init(struct cpr_drv *drv)
 			dev_err(drv->dev,
 				"min uV: %d (fuse corner: %d) not supported by regulator\n",
 				fuse->min_uV, i);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto free_volt_adjust;
 		}
 
 		ret = regulator_is_supported_voltage(drv->vdd_apc,
@@ -957,8 +1026,10 @@ static int cpr_fuse_corner_init(struct cpr_drv *drv)
 			dev_err(drv->dev,
 				"max uV: %d (fuse corner: %d) not supported by regulator\n",
 				fuse->max_uV, i);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto free_quot_pp;
 		}
+		ret = 0;
 
 		dev_dbg(drv->dev,
 			"fuse corner %d: [%d %d %d] RO%hhu quot %d squot %d\n",
@@ -966,7 +1037,13 @@ static int cpr_fuse_corner_init(struct cpr_drv *drv)
 			fuse->ring_osc_idx, fuse->quot, fuse->step_quot);
 	}
 
-	return 0;
+free_volt_adjust:
+	if (volt_pp_valid)
+		kfree(init_volt_adjust);
+free_quot_pp:
+	if (quot_pp_valid)
+		kfree(quot_adjust);
+	return ret;
 }
 
 static int cpr_calculate_scaling(const char *quot_offset,
@@ -992,6 +1069,7 @@ static int cpr_calculate_scaling(const char *quot_offset,
 		quot_diff += fdata->quot_offset_adjust;
 	} else {
 		quot_diff = fuse->quot - prev_fuse->quot;
+		quot_diff = max(quot_diff, fdata->min_diff_quot);
 	}
 
 	freq_diff = fuse->max_freq - prev_fuse->max_freq;
@@ -1065,6 +1143,7 @@ static unsigned long cpr_get_opp_hz_for_req(struct dev_pm_opp *ref,
 	struct device_node *desc_np;
 	struct device_node *child_np = NULL;
 	struct device_node *child_req_np = NULL;
+	int ret;
 
 	desc_np = dev_pm_opp_of_get_opp_desc_node(cpu_dev);
 	if (!desc_np)
@@ -1074,6 +1153,11 @@ static unsigned long cpr_get_opp_hz_for_req(struct dev_pm_opp *ref,
 	if (!ref_np)
 		goto out_ref;
 
+	ret = of_property_read_u64(ref_np, "opp-hz", &rate);
+	if (!ret)
+		goto hz_done;
+
+	/* Support legacy qcs404 that does not fill freq to cpr_opp */
 	do {
 		of_node_put(child_req_np);
 		child_np = of_get_next_available_child(desc_np, child_np);
@@ -1085,6 +1169,7 @@ static unsigned long cpr_get_opp_hz_for_req(struct dev_pm_opp *ref,
 
 	of_node_put(child_req_np);
 	of_node_put(child_np);
+hz_done:
 	of_node_put(ref_np);
 out_ref:
 	of_node_put(desc_np);
@@ -1096,7 +1181,7 @@ static int cpr_corner_init(struct cpr_drv *drv)
 {
 	const struct cpr_desc *desc = drv->desc;
 	const struct cpr_fuse *fuses = drv->cpr_fuses;
-	int i, level, scaling = 0;
+	int ret, i, level, scaling = 0;
 	unsigned int fnum, fc;
 	const char *quot_offset;
 	struct fuse_corner *fuse, *prev_fuse;
@@ -1108,6 +1193,10 @@ static int cpr_corner_init(struct cpr_drv *drv)
 	unsigned long freq;
 	int step_volt = regulator_get_linear_step(drv->vdd_apc);
 	struct dev_pm_opp *opp;
+	u32 *vc_min_uV, vc_min_uV_valid;
+	u32 *vc_quot_adjust, vc_quot_pp_valid;
+	char *quot_pp_name = "virtual-corner-quotient-adjustment";
+	char *min_uV_pp_name = "voltage-floor-override";
 
 	if (!step_volt)
 		return -EINVAL;
@@ -1121,14 +1210,30 @@ static int cpr_corner_init(struct cpr_drv *drv)
 	if (!cdata)
 		return -ENOMEM;
 
+	ret = cpr_corner_get_adjust(drv, quot_pp_name,
+				    drv->num_corners, 1,
+				    &vc_quot_adjust, &vc_quot_pp_valid);
+	if (ret)
+		goto free_cdata;
+
+	ret = cpr_corner_get_adjust(drv, min_uV_pp_name,
+				    drv->num_corners, 1,
+				    &vc_min_uV, &vc_min_uV_valid);
+	if (ret)
+		goto free_vc_quot_pp;
+
 	/*
 	 * Store maximum frequency for each fuse corner based on the frequency
 	 * plan
 	 */
 	for (level = 1; level <= drv->num_corners; level++) {
 		opp = dev_pm_opp_find_level_exact(&drv->pd.dev, level);
-		if (IS_ERR(opp))
-			return -EINVAL;
+		if (IS_ERR(opp)) {
+			ret = -EINVAL;
+			dev_err(drv->dev, "Fail to find cpu opp for level %d\n",
+				level);
+			goto free_vc_min_uV_pp;
+		}
 		fc = cpr_get_fuse_corner(opp);
 		if (!fc) {
 			dev_pm_opp_put(opp);
@@ -1138,8 +1243,10 @@ static int cpr_corner_init(struct cpr_drv *drv)
 		freq = cpr_get_opp_hz_for_req(opp, drv->attached_cpu_dev);
 		if (!freq) {
 			dev_pm_opp_put(opp);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto free_vc_min_uV_pp;
 		}
+
 		cdata[level - 1].fuse_corner = fnum;
 		cdata[level - 1].freq = freq;
 
@@ -1207,8 +1314,10 @@ static int cpr_corner_init(struct cpr_drv *drv)
 		if (prev_fuse && cdata[i - 1].freq == prev_fuse->max_freq) {
 			scaling = cpr_calculate_scaling(quot_offset, drv,
 							fdata, corner);
-			if (scaling < 0)
-				return scaling;
+			if (scaling < 0) {
+				ret = scaling;
+				goto free_vc_min_uV_pp;
+			}
 
 			apply_scaling = true;
 		} else if (corner->freq == fuse->max_freq) {
@@ -1223,9 +1332,15 @@ static int cpr_corner_init(struct cpr_drv *drv)
 
 			corner->uV = cpr_interpolate(corner, step_volt, fdata);
 		}
+		if (vc_quot_pp_valid)
+			corner->quot_adjust -= vc_quot_adjust[i];
+
+		if (vc_min_uV_valid)
+			corner->min_uV = max(fuse->min_uV, (int)vc_min_uV[i]);
+		else
+			corner->min_uV = fuse->min_uV;
 
 		corner->max_uV = fuse->max_uV;
-		corner->min_uV = fuse->min_uV;
 		corner->uV = clamp(corner->uV, corner->min_uV, corner->max_uV);
 		corner->last_uV = corner->uV;
 
@@ -1240,7 +1355,15 @@ static int cpr_corner_init(struct cpr_drv *drv)
 			fuse->quot - corner->quot_adjust);
 	}
 
-	return 0;
+free_vc_min_uV_pp:
+	if (vc_min_uV_valid)
+		kfree(vc_min_uV);
+free_vc_quot_pp:
+	if (vc_quot_pp_valid)
+		kfree(vc_quot_adjust);
+free_cdata:
+	devm_kfree(drv->dev, cdata);
+	return ret;
 }
 
 static const struct cpr_fuse *cpr_get_fuses(struct cpr_drv *drv)
@@ -1344,7 +1467,6 @@ static int cpr_find_initial_corner(struct cpr_drv *drv)
 	 * triggers the first ever call to cpr_set_performance_state(),
 	 * it will correctly determine the direction as UP.
 	 */
-	drv->corner = drv->corners;
 	for (iter = drv->corners; iter <= end; iter++) {
 		if (iter->freq > rate)
 			break;
@@ -1369,7 +1491,6 @@ static int cpr_find_initial_corner(struct cpr_drv *drv)
 
 static const struct cpr_desc qcs404_cpr_desc = {
 	.num_fuse_corners = 3,
-	.min_diff_quot = CPR_FUSE_MIN_QUOT_DIFF,
 	.step_quot = (int []){ 25, 25, 25, },
 	.timer_delay_us = 5000,
 	.timer_cons_up = 0,
@@ -1380,6 +1501,7 @@ static const struct cpr_desc qcs404_cpr_desc = {
 	.gcnt_us = 1,
 	.vdd_apc_step_up_limit = 1,
 	.vdd_apc_step_down_limit = 1,
+	.mx_level = NULL,
 	.cpr_fuses = {
 		.init_voltage_step = 8000,
 		.init_voltage_width = 6,
@@ -1396,6 +1518,7 @@ static const struct cpr_desc qcs404_cpr_desc = {
 				.quot_adjust = 0,
 				.quot_offset_scale = 5,
 				.quot_offset_adjust = 0,
+				.min_diff_quot = CPR_FUSE_MIN_QUOT_DIFF,
 			},
 			/* fuse corner 1 */
 			{
@@ -1409,6 +1532,7 @@ static const struct cpr_desc qcs404_cpr_desc = {
 				.quot_adjust = -20,
 				.quot_offset_scale = 5,
 				.quot_offset_adjust = 0,
+				.min_diff_quot = CPR_FUSE_MIN_QUOT_DIFF,
 			},
 			/* fuse corner 2 */
 			{
@@ -1422,6 +1546,7 @@ static const struct cpr_desc qcs404_cpr_desc = {
 				.quot_adjust = 0,
 				.quot_offset_scale = 5,
 				.quot_offset_adjust = 0,
+				.min_diff_quot = CPR_FUSE_MIN_QUOT_DIFF,
 			},
 		},
 	},
@@ -1450,7 +1575,6 @@ static const struct cpr_acc_desc qcs404_cpr_acc_desc = {
 
 static const struct cpr_desc msm8939_cpr_desc = {
 	.num_fuse_corners = 3,
-	.min_diff_quot = CPR_FUSE_MIN_QUOT_DIFF,
 	.step_quot = (int []){ 13, 13, 13, },
 	.timer_delay_us = 5000,
 	.timer_cons_up = 0,
@@ -1461,6 +1585,7 @@ static const struct cpr_desc msm8939_cpr_desc = {
 	.gcnt_us = 1,
 	.vdd_apc_step_up_limit = 1,
 	.vdd_apc_step_down_limit = 1,
+	.mx_level = (unsigned int[]){3, 4, 6},
 	.cpr_fuses = {
 		.init_voltage_step = 10000,
 		.init_voltage_width = 6,
@@ -1477,6 +1602,7 @@ static const struct cpr_desc msm8939_cpr_desc = {
 				.quot_adjust = 0,
 				.quot_offset_scale = 0,
 				.quot_offset_adjust = 0,
+				.min_diff_quot = 0,
 			},
 			/* fuse corner 1 */
 			{
@@ -1484,12 +1610,13 @@ static const struct cpr_desc msm8939_cpr_desc = {
 				.max_uV = 1150000,
 				.min_uV = 1050000,
 				.max_volt_scale = 0,
-				.max_quot_scale = 900,
+				.max_quot_scale = 0,
 				.quot_offset = 0,
 				.quot_scale = 1,
 				.quot_adjust = -41,
 				.quot_offset_scale = 0,
 				.quot_offset_adjust = 0,
+				.min_diff_quot = 0,
 			},
 			/* fuse corner 2 */
 			{
@@ -1503,10 +1630,10 @@ static const struct cpr_desc msm8939_cpr_desc = {
 				.quot_adjust = 0,
 				.quot_offset_scale = 0,
 				.quot_offset_adjust = 0,
+				.min_diff_quot = 40,
 			},
 		},
 	},
-	.mx_level = (unsigned int[]){3, 4, 6},
 };
 
 static const struct acc_desc msm8939_acc_desc = {
@@ -1602,6 +1729,7 @@ static int cpr_pd_attach_dev(struct generic_pm_domain *domain,
 		goto unlock;
 	}
 	drv->num_corners = ret;
+	dev_dbg(drv->dev, "has %d virtual corners.\n", ret);
 
 	if (drv->num_corners < 2) {
 		dev_err(drv->dev, "need at least 2 OPPs to use CPR\n");
@@ -1713,6 +1841,91 @@ static void cpr_debugfs_init(struct cpr_drv *drv)
 			    drv, &cpr_debug_info_fops);
 }
 
+#define FUSE_MATCH_TUPLE_SIZE 3
+static int cpr_fuse_match_tuple(struct device *dev, struct cpr_drv *drv)
+{
+	u32 cpr_rev, cpr_rev_high;
+	u32 pvs_ver, pvs_ver_high;
+	struct property *pp;
+	int i, tuple_size = FUSE_MATCH_TUPLE_SIZE;
+	int ret, len;
+	u32 *tmp, speedbin;
+
+	drv->cpr_fuse_map_match = FUSE_MATCH_ANY;
+	ret = cpr_read_efuse(dev, "cpr_fuse_revision", &cpr_rev);
+	if (ret)
+		return ret;
+
+	ret = cpr_read_efuse(dev, "cpr_fuse_revision_high", &cpr_rev_high);
+	if (!ret)
+		cpr_rev |= cpr_rev_high << 1;
+
+	dev_info(dev, "fuse revision %d\n", cpr_rev);
+
+	pp = of_find_property(dev->of_node, "fuse-version-map", &len);
+	if (!pp)
+		return 0;
+
+	ret = cpr_read_efuse(dev, "cpr_pvs_version", &pvs_ver);
+	if (ret)
+		return ret;
+
+	ret = cpr_read_efuse(dev, "cpr_pvs_version_high", &pvs_ver_high);
+	if (!ret)
+		pvs_ver |= pvs_ver_high << 1;
+
+	ret = cpr_read_efuse(dev, "cpr_speedbin", &speedbin);
+
+	dev_info(dev, "pvs_version %d, speed_bin %d\n", pvs_ver, speedbin);
+
+	drv->cpr_fuse_map_count = len / (sizeof(u32) * tuple_size);
+
+	if (len == 0 || len % (sizeof(u32) * tuple_size)) {
+		dev_err(dev, "fuse-version-map length=%d is invalid\n",
+			len);
+		return -EINVAL;
+	}
+
+	tmp = kzalloc(len, GFP_KERNEL);
+	if (!tmp)
+		return -ENOMEM;
+
+	ret = of_property_read_u32_array(dev->of_node, "fuse-version-map",
+				tmp, drv->cpr_fuse_map_count * tuple_size);
+	if (ret) {
+		dev_err(dev, "could not read fuse-version-map, rc=%d\n",
+			ret);
+		return ret;
+	}
+
+	/*
+	 * fuse-version-map tuple format:
+	 * <speed_bin, pvs_version, cpr_fuse_revision
+	 */
+	for (i = 0; i < drv->cpr_fuse_map_count; i++) {
+		if (tmp[i * tuple_size] != speedbin
+		    && tmp[i * tuple_size] != FUSE_MATCH_ANY)
+			continue;
+		if (tmp[i * tuple_size + 1] != pvs_ver
+		    && tmp[i * tuple_size + 1] != FUSE_MATCH_ANY)
+			continue;
+		if (tmp[i * tuple_size + 2] != cpr_rev
+		    && tmp[i * tuple_size + 2] != FUSE_MATCH_ANY)
+			continue;
+		drv->cpr_fuse_map_match = i;
+		break;
+	}
+	if (drv->cpr_fuse_map_match != FUSE_MATCH_ANY) {
+		dev_info(dev, "fuse map tuple match found: %d\n",
+			drv->cpr_fuse_map_match);
+	} else {
+		dev_warn(dev, "fuse map tuple match not found\n");
+		drv->cpr_fuse_map_match = 0;
+		drv->cpr_fuse_map_count = 1;
+	}
+	return 0;
+}
+
 static int cpr_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1720,7 +1933,6 @@ static int cpr_probe(struct platform_device *pdev)
 	int irq, ret;
 	const struct cpr_acc_desc *data;
 	struct device_node *np;
-	u32 cpr_rev = FUSE_REVISION_UNKNOWN, cpr_rev_high;
 
 	data = of_device_get_match_data(dev);
 	if (!data || !data->cpr_desc || !data->acc_desc)
@@ -1767,15 +1979,10 @@ static int cpr_probe(struct platform_device *pdev)
 	 * initialized after attaching to the power domain,
 	 * since it depends on the CPU's OPP table.
 	 */
-	ret = nvmem_cell_read_variable_le_u32(dev, "cpr_fuse_revision", &cpr_rev);
+	ret = cpr_fuse_match_tuple(dev, drv);
 	if (ret)
 		return ret;
 
-	ret = cpr_read_efuse(dev, "cpr_fuse_revision_high", &cpr_rev_high);
-	if (!ret)
-		cpr_rev |= cpr_rev_high << 1;
-
-	dev_info(drv->dev, "fuse revision %d\n", cpr_rev);
 	drv->cpr_fuses = cpr_get_fuses(drv);
 	if (IS_ERR(drv->cpr_fuses))
 		return PTR_ERR(drv->cpr_fuses);
