@@ -1852,11 +1852,11 @@ static int cpr_fuse_match_tuple(struct device *dev, struct cpr_drv *drv)
 	u32 *tmp, speedbin;
 
 	drv->cpr_fuse_map_match = FUSE_MATCH_ANY;
-	ret = cpr_read_efuse(dev, "cpr_fuse_revision", &cpr_rev);
+	ret = nvmem_cell_read_variable_le_u32(dev, "cpr_fuse_revision", &cpr_rev);
 	if (ret)
 		return ret;
 
-	ret = cpr_read_efuse(dev, "cpr_fuse_revision_high", &cpr_rev_high);
+	ret = nvmem_cell_read_variable_le_u32(dev, "cpr_fuse_revision_high", &cpr_rev_high);
 	if (!ret)
 		cpr_rev |= cpr_rev_high << 1;
 
@@ -1866,15 +1866,15 @@ static int cpr_fuse_match_tuple(struct device *dev, struct cpr_drv *drv)
 	if (!pp)
 		return 0;
 
-	ret = cpr_read_efuse(dev, "cpr_pvs_version", &pvs_ver);
+	ret = nvmem_cell_read_variable_le_u32(dev, "cpr_pvs_version", &pvs_ver);
 	if (ret)
 		return ret;
 
-	ret = cpr_read_efuse(dev, "cpr_pvs_version_high", &pvs_ver_high);
+	ret = nvmem_cell_read_variable_le_u32(dev, "cpr_pvs_version_high", &pvs_ver_high);
 	if (!ret)
 		pvs_ver |= pvs_ver_high << 1;
 
-	ret = cpr_read_efuse(dev, "cpr_speedbin", &speedbin);
+	ret = nvmem_cell_read_variable_le_u32(dev, "cpr_speedbin", &speedbin);
 
 	dev_info(dev, "pvs_version %d, speed_bin %d\n", pvs_ver, speedbin);
 
