@@ -116,7 +116,7 @@ static int ncp6335x_read(struct ncp6335d_info *dd, unsigned int reg,
 	pr_debug(" %s: reg=0x%x, val=0x%x\n",
 		__func__, reg, *val);
 	for (i = 0; rc && i < ARRAY_SIZE(delay_array); i++) {
-		pr_warning("%s: failed reading reg=0x%x val=%u rc=%d - retry(%d)\n",
+		pr_warn("%s: failed reading reg=0x%x val=%u rc=%d - retry(%d)\n",
 			__func__, reg, *val, rc, i);
 		msleep(delay_array[i]);
 		rc = regmap_read(dd->regmap, reg, val);
@@ -143,7 +143,7 @@ static int ncp6335x_write(struct ncp6335d_info *dd, unsigned int reg,
 
 	for (i = 0; (rc || read_rc || val != read_val)
 			&& i < ARRAY_SIZE(delay_array); i++) {
-		pr_warning("%s: failed writing reg=0x%x val=0x%x rc=%d "
+		pr_warn("%s: failed writing reg=0x%x val=0x%x rc=%d "
 			"read_rc=%d read_val=0x%x - retry(%d)\n", __func__, reg,
 			val, rc, read_rc, read_val, i);
 		msleep(delay_array[i]);
@@ -152,7 +152,7 @@ static int ncp6335x_write(struct ncp6335d_info *dd, unsigned int reg,
 	}
 
 	if (rc || read_rc || val != read_val)
-		pr_warning("%s: failed writing reg=0x%x val=0x%x rc=%d "
+		pr_warn("%s: failed writing reg=0x%x val=0x%x rc=%d "
 			"read_rc=%d read_val=0x%x\n", __func__, reg, val, rc,
 			read_rc, read_val);
 	else
@@ -177,7 +177,7 @@ static int ncp6335x_update_bits(struct ncp6335d_info *dd, unsigned int reg,
 
 	for (i = 0; (rc || read_rc || (val & mask) != (read_val & mask))
 			&& i < ARRAY_SIZE(delay_array); i++) {
-		pr_warning("%s: failed updating reg=0x%x mask=0x%x val=0x%x "
+		pr_warn("%s: failed updating reg=0x%x mask=0x%x val=0x%x "
 			"rc=%d read_rc=%d read_val=%u - retry(%d)\n", __func__,
 			reg, mask, val, rc, read_rc, read_val, i);
 		msleep(delay_array[i]);
