@@ -867,12 +867,8 @@ static int ncp6335d_regulator_probe(struct i2c_client *client,
 	if (dd->debug_root) {
 		struct dentry *ent;
 
-		ent = debugfs_create_x32("address", S_IFREG | S_IWUSR | S_IRUGO,
-					  dd->debug_root,
-					  &(dd->peek_poke_address));
-		if (!ent)
-			dev_err(&client->dev, "Couldn't create address debug file rc = %d\n",
-									rc);
+		debugfs_create_x32("address", S_IFREG | S_IWUSR | S_IRUGO,
+				   dd->debug_root, &(dd->peek_poke_address));
 
 		ent = debugfs_create_file("data", S_IFREG | S_IWUSR | S_IRUGO,
 					  dd->debug_root, dd,
