@@ -206,6 +206,31 @@
 	};
 };
 
+&blsp_i2c4 {
+	status = "okay";
+
+	ncp6335d: ncp6335d-regulator@1c {
+		compatible = "onnn,ncp6335d-regulator";
+		reg = <0x1c>;
+		onnn,vsel = <0>;
+		onnn,slew-ns = <3333>;
+		onnn,step-size = <6250>;
+		onnn,min-slew-ns = <416>;
+		onnn,max-slew-ns = <3333>;
+		regulator-min-microvolt = <1050000>;
+		regulator-max-microvolt = <1350000>;
+		onnn,min-setpoint = <600000>;
+		pintrl-names = "default";
+		pinctrl-0 = <&ext_buck_vsel>;
+		onnn,vsel-gpio = <&msmgpio 111 1>;
+		onnn,discharge-enable;
+		onnn,restore-reg;
+		onnn,set-en-always;
+		onnn,register-corruption-workaround;
+		regulator-always-on;
+	};
+};
+
 &blsp_i2c5 {
 	status = "okay";
 };
@@ -355,4 +380,8 @@
 			regulator-max-microvolt = <2700000>;
 		};
 	};
+};
+
+&cpr {
+	vdd-apc-supply = <&ncp6335d>;
 };
