@@ -478,14 +478,6 @@ static void csid_configure_stream(struct csid_device *csid, u8 enable)
 			__csid_configure_stream(csid, enable, i);
 }
 
-static int csid_configure_testgen_pattern(struct csid_device *csid, s32 val)
-{
-	if (val > 0 && val <= csid->testgen.nmodes)
-		csid->testgen.mode = val;
-
-	return 0;
-}
-
 /*
  * csid_hw_version - CSID hardware version query
  * @csid: CSID device

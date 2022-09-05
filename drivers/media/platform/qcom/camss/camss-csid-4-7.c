@@ -291,14 +291,6 @@ static void csid_configure_stream(struct csid_device *csid, u8 enable)
 	}
 }
 
-static int csid_configure_testgen_pattern(struct csid_device *csid, s32 val)
-{
-	if (val > 0 && val <= csid->testgen.nmodes)
-		csid->testgen.mode = val;
-
-	return 0;
-}
-
 static u32 csid_hw_version(struct csid_device *csid)
 {
 	u32 hw_version = readl_relaxed(csid->base + CAMSS_CSID_HW_VERSION);

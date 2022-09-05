@@ -183,6 +183,8 @@ struct csid_device {
 
 struct camss_subdev_resources;
 
+int csid_configure_testgen_pattern(struct csid_device *csid, s32 val);
+
 /*
  * csid_find_code - Find a format code in an array using array index or format code
  * @codes: Array of format codes
