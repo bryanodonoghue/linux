@@ -1556,6 +1556,12 @@ static int va_macro_probe(struct platform_device *pdev)
 	}
 
 	if (va->has_swr_master) {
+		ret = clk_prepare_enable(va->npl);
+		if (ret)
+			goto err_npl;
+	}
+
+	if (va->has_swr_master) {
 		/* Set default CLK div to 1 */
 		regmap_update_bits(va->regmap, CDC_VA_TOP_CSR_SWR_MIC_CTL0,
 				  CDC_VA_SWR_MIC_CLK_SEL_0_1_MASK,
