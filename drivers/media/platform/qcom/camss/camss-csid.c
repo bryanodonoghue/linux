@@ -605,9 +605,10 @@ int msm_csid_subdev_init(struct camss *camss, struct csid_device *csid,
 	csid->irq = ret;
 	snprintf(csid->irq_name, sizeof(csid->irq_name), "%s_%s%d",
 		 dev_name(dev), MSM_CSID_NAME, csid->id);
-	ret = devm_request_irq(dev, csid->irq, csid->ops->isr,
-			       IRQF_TRIGGER_RISING | IRQF_NO_AUTOEN,
-			       csid->irq_name, csid);
+	ret = devm_request_threaded_irq(dev, csid->irq, csid->ops->isr,
+					csid->ops->isr_thread,
+					IRQF_TRIGGER_RISING | IRQF_NO_AUTOEN,
+					csid->irq_name, csid);
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;

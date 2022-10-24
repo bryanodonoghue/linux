@@ -121,6 +121,15 @@ struct csid_hw_ops {
 	 */
 	irqreturn_t (*isr)(int irq, void *dev);
 
+		/*
+	 * isr - CSID module threaded interrupt service routine
+	 * @irq: Interrupt line
+	 * @dev: CSID device
+	 *
+	 * Return IRQ_HANDLED on success
+	 */
+	irqreturn_t (*isr_thread)(int irq, void *dev);
+
 	/*
 	 * reset - Trigger reset on CSID module and wait to complete
 	 * @csid: CSID device
