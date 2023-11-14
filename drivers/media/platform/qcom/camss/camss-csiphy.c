@@ -566,6 +566,10 @@ int msm_csiphy_subdev_init(struct camss *camss,
 	csiphy->cfg.combo_mode = 0;
 	csiphy->ops = res->ops;
 
+	ret = csiphy->ops->init(csiphy);
+	if (ret)
+		return ret;
+
 	switch (camss->res->version) {
 	case CAMSS_8x16:
 		csiphy->formats = csiphy_formats_8x16;
