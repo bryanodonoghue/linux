@@ -82,6 +82,7 @@ struct csiphy_device {
 	const struct csiphy_hw_ops *ops;
 	const struct csiphy_format *formats;
 	unsigned int nformats;
+	void *data;
 };
 
 struct camss_subdev_resources;
