@@ -635,6 +635,7 @@ static bool csiphy_is_gen2(u32 version)
 	case CAMSS_845:
 	case CAMSS_8250:
 	case CAMSS_8280XP:
+	case CAMSS_X1E80100:
 		ret = true;
 		break;
 	}
@@ -707,20 +708,27 @@ static int csiphy_init(struct csiphy_device *csiphy)
 		return -ENOMEM;
 
 	csiphy->data = regs;
-	regs->offset = 0x800;
 
 	switch (csiphy->camss->res->version) {
 	case CAMSS_845:
 		regs->lane_regs = &lane_regs_sdm845[0];
 		regs->lane_array_size = ARRAY_SIZE(lane_regs_sdm845);
+		regs->offset = 0x800;
 		break;
 	case CAMSS_8250:
 		regs->lane_regs = &lane_regs_sm8250[0];
 		regs->lane_array_size = ARRAY_SIZE(lane_regs_sm8250);
+		regs->offset = 0x800;
 		break;
 	case CAMSS_8280XP:
 		regs->lane_regs = &lane_regs_sc8280xp[0];
 		regs->lane_array_size = ARRAY_SIZE(lane_regs_sc8280xp);
+		regs->offset = 0x800;
+		break;
+	case CAMSS_X1E80100:
+		regs->lane_regs = &lane_regs_x1e80100[0];
+		regs->lane_array_size = ARRAY_SIZE(lane_regs_x1e80100);
+		regs->offset = 0x1000;
 		break;
 	default:
 		WARN(1, "unknown csiphy version\n");
