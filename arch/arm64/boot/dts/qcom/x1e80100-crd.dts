@@ -600,6 +600,8 @@
 
 	data-lanes = <0 1 2 3>;
 
+	is-edp;
+
 	status = "okay";
 
 	aux-bus {
