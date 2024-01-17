@@ -264,6 +264,16 @@ config QCOM_ICC_BWMON
 	  the fixed bandwidth votes from cpufreq (CPU nodes) thus achieve high
 	  memory throughput even with lower CPU frequencies.
 
+config QCOM_SCMI_CLIENT
+	tristate "Qualcomm Technologies Inc. SCMI client driver"
+	depends on QCOM_SCMI_VENDOR_PROTOCOL || COMPILE_TEST
+	default n
+	help
+	  SCMI client driver registers for SCMI QCOM vendor protocol.
+
+	  This driver interacts with the vendor protocol and passes on the required
+	  tuneables to start various features running on the SCMI controller.
+
 config QCOM_INLINE_CRYPTO_ENGINE
 	tristate
 	select QCOM_SCM
