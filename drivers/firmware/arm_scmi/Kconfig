@@ -180,4 +180,15 @@ config ARM_SCMI_POWER_CONTROL
 	  called scmi_power_control. Note this may needed early in boot to catch
 	  early shutdown/reboot SCMI requests.
 
+config QCOM_SCMI_VENDOR_PROTOCOL
+	tristate "Qualcomm Technologies, Inc. Qcom SCMI vendor Protocol"
+	depends on ARM || ARM64 || COMPILE_TEST
+	depends on ARM_SCMI_PROTOCOL
+	help
+	  The SCMI QCOM vendor protocol provides interface to communicate with SCMI
+	  controller and enable vendor specific features like bus scaling.
+
+	  This driver defines the commands or message ID's used for this
+	  communication and also exposes the ops used by the clients.
+
 endmenu
