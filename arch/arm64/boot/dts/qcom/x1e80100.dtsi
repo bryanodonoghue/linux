@@ -3691,6 +3691,9 @@
 				 <&gcc GCC_DISP_HF_AXI_CLK>,
 				 <&dispcc DISP_CC_MDSS_MDP_CLK>;
 
+			assigned-clocks = <&dispcc DISP_CC_MDSS_MDP_CLK_SRC>;
+			assigned-clock-parents = <&dispcc DISP_CC_PLL0>;
+
 			resets = <&dispcc DISP_CC_MDSS_CORE_BCR>;
 
 			interconnects = <&mmss_noc MASTER_MDP QCOM_ICC_TAG_ALWAYS
