@@ -146,13 +146,21 @@
 				"IN1_HPHL", "HPHL_OUT",
 				"IN2_HPHR", "HPHR_OUT",
 				"AMIC2", "MIC BIAS2",
-				"VA DMIC0", "MIC BIAS1",
-				"VA DMIC1", "MIC BIAS1",
-				"VA DMIC2", "MIC BIAS3",
-				"VA DMIC0", "VA MIC BIAS1",
-				"VA DMIC1", "VA MIC BIAS1",
-				"VA DMIC2", "VA MIC BIAS3",
-				"TX SWR_INPUT5", "ADC2_OUTPUT";
+				"VA DMIC0", "MIC BIAS3",
+				"VA DMIC1", "MIC BIAS3",
+				"VA DMIC2", "MIC BIAS1",
+				"VA DMIC3", "MIC BIAS1",
+				"VA DMIC0", "VA MIC BIAS3",
+				"VA DMIC1", "VA MIC BIAS3",
+				"VA DMIC2", "VA MIC BIAS1",
+				"VA DMIC3", "VA MIC BIAS1",
+				"TX SWR_INPUT0", "ADC2_OUTPUT",
+				"TX SWR_INPUT1", "ADC2_OUTPUT",
+				"TX SWR_INPUT2", "ADC2_OUTPUT",
+				"TX SWR_INPUT3", "ADC2_OUTPUT",
+				"TX SWR_INPUT4", "ADC2_OUTPUT",
+				"TX SWR_INPUT5", "ADC2_OUTPUT",
+				"TX SWR_INPUT6", "ADC2_OUTPUT";
 
 		wcd-playback-dai-link {
 			link-name = "WCD Playback";
