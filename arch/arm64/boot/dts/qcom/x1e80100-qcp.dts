@@ -22,6 +22,74 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	pmic-glink {
+		compatible = "qcom,x1e80100-pmic-glink",
+			     "qcom,sm8550-pmic-glink",
+			     "qcom,pmic-glink";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		connector@0 {
+			compatible = "usb-c-connector";
+			reg = <0>;
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@1 {
+					reg = <1>;
+
+					pmic_glink_ss0_in: endpoint {
+						remote-endpoint = <&usb_1_ss0_role_switch>;
+					};
+				};
+			};
+		};
+
+		connector@1 {
+			compatible = "usb-c-connector";
+			reg = <1>;
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@1 {
+					reg = <1>;
+
+					pmic_glink_ss1_in: endpoint {
+						remote-endpoint = <&usb_1_ss1_role_switch>;
+					};
+				};
+			};
+		};
+
+		connector@2 {
+			compatible = "usb-c-connector";
+			reg = <2>;
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@1 {
+					reg = <1>;
+
+					pmic_glink_ss2_in: endpoint {
+						remote-endpoint = <&usb_1_ss2_role_switch>;
+					};
+				};
+			};
+		};
+	};
+
 	vph_pwr: vph-pwr-regulator {
 		compatible = "regulator-fixed";
 
@@ -529,6 +597,10 @@
 	usb-role-switch;
 };
 
+&usb_1_ss0_role_switch {
+	remote-endpoint = <&pmic_glink_ss0_in>;
+};
+
 &usb_1_ss1_hsphy {
 	vdd-supply = <&vreg_l2e_0p8>;
 	vdda12-supply = <&vreg_l3e_1p2>;
@@ -549,6 +621,10 @@
 	usb-role-switch;
 };
 
+&usb_1_ss1_role_switch {
+	remote-endpoint = <&pmic_glink_ss1_in>;
+};
+
 &usb_1_ss2_hsphy {
 	vdd-supply = <&vreg_l2e_0p8>;
 	vdda12-supply = <&vreg_l3e_1p2>;
@@ -567,4 +643,8 @@
 &usb_1_ss2_dwc3 {
 	dr_mode = "host";
 	usb-role-switch;
+};
+
+&usb_1_ss2_role_switch {
+	remote-endpoint = <&pmic_glink_ss2_in>;
 };
