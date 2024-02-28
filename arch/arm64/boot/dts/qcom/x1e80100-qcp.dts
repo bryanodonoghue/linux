@@ -470,6 +470,14 @@
 	};
 };
 
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		firmware-name = "qcom/a740_zap.mbn";
+	};
+};
+
 &mdss {
 	status = "okay";
 };
@@ -479,6 +487,8 @@
 	/delete-property/ #sound-dai-cells;
 
 	data-lanes = <0 1 2 3>;
+
+	is-edp;
 
 	status = "okay";
 
