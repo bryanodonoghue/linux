@@ -11,6 +11,7 @@
 #include <linux/kernel.h>
 #include <linux/ktime.h>
 #include <linux/pm_domain.h>
+#include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset-controller.h>
@@ -259,10 +260,23 @@ static void gdsc_retain_ff_on(struct gdsc *sc)
 static int gdsc_enable(struct generic_pm_domain *domain)
 {
 	struct gdsc *sc = domain_to_gdsc(domain);
+	struct device *dev = sc->dev;
 	int ret;
 
-	if (sc->pwrsts == PWRSTS_ON)
-		return gdsc_deassert_reset(sc);
+	/*
+	 * sc->pwrsts == PWRSTS_RET_ON never decrements so RETAIN_FF will work.
+	 */
+	if (refcount_read(&sc->refcount) == 1) {
+		ret = pm_runtime_resume_and_get(dev);
+		if (ret)
+			return ret;
+		refcount_inc(&sc->refcount);
+	}
+
+	if (sc->pwrsts == PWRSTS_ON) {
+		ret = gdsc_deassert_reset(sc);
+		goto done;
+	}
 
 	if (sc->flags & SW_RESET) {
 		gdsc_assert_reset(sc);
@@ -278,7 +292,7 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 
 	ret = gdsc_toggle_logic(sc, GDSC_ON, false);
 	if (ret)
-		return ret;
+		goto done;
 
 	if (sc->pwrsts & PWRSTS_OFF)
 		gdsc_force_mem_on(sc);
@@ -296,7 +310,7 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	if (sc->flags & HW_CTRL) {
 		ret = gdsc_hwctrl(sc, true);
 		if (ret)
-			return ret;
+			goto done;
 		/*
 		 * Wait for the GDSC to go through a power down and
 		 * up cycle.  In case a firmware ends up polling status
@@ -311,7 +325,13 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	if (sc->flags & RETAIN_FF_ENABLE)
 		gdsc_retain_ff_on(sc);
 
-	return 0;
+done:
+	if (ret) {
+		refcount_dec(&sc->refcount);
+		pm_runtime_put(sc->dev);
+	}
+
+	return ret;
 }
 
 static int gdsc_disable(struct generic_pm_domain *domain)
@@ -319,14 +339,16 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 	struct gdsc *sc = domain_to_gdsc(domain);
 	int ret;
 
-	if (sc->pwrsts == PWRSTS_ON)
-		return gdsc_assert_reset(sc);
+	if (sc->pwrsts == PWRSTS_ON) {
+		ret = gdsc_assert_reset(sc);
+		goto done_put;
+	}
 
 	/* Turn off HW trigger mode if supported */
 	if (sc->flags & HW_CTRL) {
 		ret = gdsc_hwctrl(sc, false);
 		if (ret < 0)
-			return ret;
+			goto done_put;
 		/*
 		 * Wait for the GDSC to go through a power down and
 		 * up cycle.  In case we end up polling status
@@ -337,7 +359,7 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 
 		ret = gdsc_poll_status(sc, GDSC_ON);
 		if (ret)
-			return ret;
+			goto done_put;
 	}
 
 	if (sc->pwrsts & PWRSTS_OFF)
@@ -350,17 +372,26 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 	 * Retention state. This happens in HW when the parent
 	 * domain goes down to a Low power state
 	 */
-	if (sc->pwrsts == PWRSTS_RET_ON)
-		return 0;
+	if (sc->pwrsts == PWRSTS_RET_ON) {
+		ret = 0;
+		goto done;
+	}
 
 	ret = gdsc_toggle_logic(sc, GDSC_OFF, domain->synced_poweroff);
 	if (ret)
-		return ret;
+		goto done_put;
 
 	if (sc->flags & CLAMP_IO)
 		gdsc_assert_clamp_io(sc);
 
-	return 0;
+done_put:
+	/* gdsc_disable can happen before gdsc_enable don't underflow */
+	if (refcount_read(&sc->refcount) > 1) {
+		pm_runtime_put(sc->dev);
+		refcount_dec(&sc->refcount);
+	}
+done:
+	return ret;
 }
 
 static int gdsc_init(struct gdsc *sc)
@@ -496,8 +527,10 @@ int gdsc_register(struct gdsc_desc *desc,
 	for (i = 0; i < num; i++) {
 		if (!scs[i])
 			continue;
+		scs[i]->dev = dev;
 		scs[i]->regmap = regmap;
 		scs[i]->rcdev = rcdev;
+		refcount_set(&scs[i]->refcount, 1);
 		ret = gdsc_init(scs[i]);
 		if (ret)
 			return ret;

@@ -8,6 +8,7 @@
 
 #include <linux/err.h>
 #include <linux/pm_domain.h>
+#include <linux/refcount.h>
 
 struct regmap;
 struct regulator;
@@ -32,6 +33,8 @@ struct reset_controller_dev;
  * @rcdev: reset controller
  */
 struct gdsc {
+	struct device			*dev;
+	refcount_t			refcount;
 	struct generic_pm_domain	pd;
 	struct generic_pm_domain	*parent;
 	struct regmap			*regmap;
