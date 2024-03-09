@@ -21,6 +21,7 @@ struct qcom_cc {
 	struct qcom_reset_controller reset;
 	struct clk_regmap **rclks;
 	size_t num_rclks;
+	struct dev_pm_domain_list *pd_list;
 };
 
 const
@@ -234,6 +235,22 @@ static struct clk_hw *qcom_cc_clk_hw_get(struct of_phandle_args *clkspec,
 	return cc->rclks[idx] ? &cc->rclks[idx]->hw : NULL;
 }
 
+static int qcom_cc_pds_attach(struct device *dev, struct qcom_cc *cc)
+{
+	struct dev_pm_domain_attach_data pd_data;
+	int ret;
+
+	/* Only one power-domain platform framework will hook it up */
+	if (dev->pm_domain)
+		return 0;
+
+	ret = dev_pm_domain_attach_list(dev, &pd_data, &cc->pd_list);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 int qcom_cc_really_probe(struct platform_device *pdev,
 			 const struct qcom_cc_desc *desc, struct regmap *regmap)
 {
@@ -250,6 +267,10 @@ int qcom_cc_really_probe(struct platform_device *pdev,
 	cc = devm_kzalloc(dev, sizeof(*cc), GFP_KERNEL);
 	if (!cc)
 		return -ENOMEM;
+
+	ret = qcom_cc_pds_attach(dev, cc);
+	if (ret)
+		return ret;
 
 	reset = &cc->reset;
 	reset->rcdev.of_node = dev->of_node;
